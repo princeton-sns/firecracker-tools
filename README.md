@@ -12,7 +12,7 @@ TAP devices are created and configured ahead of time. See `sys_setup.sh` and `ne
 for examples.
 
 ## Example rootfs
-I've included the following rootfs as examples:
+I've included the following rootfs as examples since making the right rootfs has proven to be tricky for me:
 1. hello-rootfs.ext4: provided by AWS team as a toy example. Actually not a minimum rootfs. init
    process does quite a bit
 2. iperf.rootfs.ext4: similar to hello-rootfs but added a network job (iperf) to the init process.
