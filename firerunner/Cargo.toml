@@ -1,0 +1,12 @@
+[package]
+name = "firerunner"
+version = "0.1.0"
+authors = ["Amit Aryeh Levy <amit@amitlevy.com>"]
+
+[dependencies]
+clap = "*"
+futures = "=0.1.18"
+vmm = { path = "../firecracker/vmm" }
+sys_util = { path = "../firecracker/sys_util" }
+
+[workspace]
