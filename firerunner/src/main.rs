@@ -1,3 +1,5 @@
+#[macro_use(json)]
+extern crate serde_json;
 #[macro_use(crate_version, crate_authors)]
 extern crate clap;
 extern crate futures;
@@ -16,6 +18,7 @@ use vmm::{VmmAction, VmmActionError, VmmData};
 use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 use vmm::vmm_config::boot_source::BootSourceConfig;
 use vmm::vmm_config::drive::BlockDeviceConfig;
+use vmm::vmm_config::logger::{LoggerLevel, LoggerConfig};
 use sys_util::EventFd;
 
 fn main() {
@@ -112,15 +115,24 @@ fn main() {
         sender,
         event_fd,
     };
-    let config = vmm.get_configuration().unwrap();
 
-    println!("Configuration: {:?}", config);
+    println!("Configuration: {:?}", vmm.get_configuration().expect("config"));
+
+    let log_config = LoggerConfig {
+        log_fifo: String::from("logs.fifo"),
+        metrics_fifo: String::from("metrics.fifo"),
+        level: LoggerLevel::Info,
+        show_level: true,
+        show_log_origin: true,
+        options: json!([]),
+    };
+    println!("{:?}", vmm.config_log(log_config).expect("Log"));
 
     let boot_config = BootSourceConfig {
         kernel_image_path: kernel,
         boot_args: Some(cmd_line),
     };
-    println!("{:?}", vmm.set_boot_source(boot_config).unwrap());
+    println!("{:?}", vmm.set_boot_source(boot_config).expect("Boot"));
 
     let block_config = BlockDeviceConfig {
         drive_id: String::from("rootfs"),
@@ -130,11 +142,11 @@ fn main() {
         partuuid: None,
         rate_limiter: None,
     };
-    println!("{:?}", vmm.insert_block_device(block_config).unwrap());
+    println!("{:?}", vmm.insert_block_device(block_config).expect("Block"));
 
-    println!("{:?}", vmm.start_instance().unwrap());
-    println!("{:?}", shared_info.read().unwrap().state);
-    vmm_thread_handle.join().unwrap();
+    println!("{:?}", vmm.start_instance().expect("Start instance"));
+    println!("{:?}", shared_info.read().expect("Shared info").state);
+    vmm_thread_handle.join().expect("Join");
 }
 
 struct VmmWrapper {
@@ -150,7 +162,7 @@ impl VmmWrapper {
         self.event_fd.write(1).map_err(|_| ()).expect("Failed to signal");
         sync_receiver.map(|i| {
             i
-        }).wait().unwrap()
+        }).wait().expect("get config")
     }
 
     fn set_boot_source(&mut self, config: BootSourceConfig) -> Result<VmmData, VmmActionError> {
@@ -160,7 +172,7 @@ impl VmmWrapper {
         self.event_fd.write(1).map_err(|_| ()).expect("Failed to signal");
         sync_receiver.map(|i| {
             i
-        }).wait().unwrap()
+        }).wait().expect("set boot source")
     }
 
     fn insert_block_device(&mut self, config: BlockDeviceConfig) -> Result<VmmData, VmmActionError> {
@@ -170,7 +182,7 @@ impl VmmWrapper {
         self.event_fd.write(1).map_err(|_| ()).expect("Failed to signal");
         sync_receiver.map(|i| {
             i
-        }).wait().unwrap()
+        }).wait().expect("insert block device")
     }
 
     fn start_instance(&mut self) -> Result<VmmData, VmmActionError> {
@@ -180,6 +192,16 @@ impl VmmWrapper {
         self.event_fd.write(1).map_err(|_| ()).expect("Failed to signal");
         sync_receiver.map(|i| {
             i
-        }).wait().unwrap()
+        }).wait().expect("start instance")
+    }
+
+    fn config_log(&mut self, level: LoggerConfig) -> Result<VmmData, VmmActionError> {
+        let (sync_sender, sync_receiver) = oneshot::channel();
+        let req = VmmAction::ConfigureLogger(level, sync_sender);
+        self.sender.send(Box::new(req)).map_err(|_| ()).expect("Couldn't send");
+        self.event_fd.write(1).map_err(|_| ()).expect("Failed to signal");
+        sync_receiver.map(|i| {
+            i
+        }).wait().expect("config_log")
     }
 }

@@ -5,6 +5,7 @@ authors = ["Amit Aryeh Levy <amit@amitlevy.com>"]
 
 [dependencies]
 clap = "*"
+serde_json = "*"
 futures = "=0.1.18"
 vmm = { path = "../firecracker/vmm" }
 sys_util = { path = "../firecracker/sys_util" }
