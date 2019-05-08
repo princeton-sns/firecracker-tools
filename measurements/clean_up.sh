@@ -9,4 +9,3 @@ do
     ip link del "fc-tap${i}" 2> /dev/null
 done
 
-# Setup TAP device that uses proxy ARP

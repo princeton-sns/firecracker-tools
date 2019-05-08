@@ -2,9 +2,10 @@
 #
 #
 COUNT="${1:-5}"
+NET="${2:nonet}"
 
 # initialze system (network interfaces)
-./sys_setup.sh $COUNT
+./sys_setup.sh $COUNT $NET
 
 echo "Start latency ($COUNT)test @ `date`"
 START_TS=`date +%s%N | cut -b1-13`
