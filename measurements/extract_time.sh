@@ -6,7 +6,8 @@ DEST="$PWD/data.log"
 KERNEL="$PWD/kernel.log"
 INIT="$PWD/init.log"
 UNZIP="$PWD/unzip.log"
-APP="$PWD/python.log"
+IMPORT="$PWD/import.log"
+APP="$PWD/app.log"
 
 rm -f $DEST
 
@@ -19,11 +20,13 @@ do
     kernel_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==1'`
     init_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==2'`
     unzip_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==3'`
-    app_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==4'`
+    import_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==4'`
+    app_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==5'`
     #echo "$i boot $boot_time ms" >> $DEST
     echo "$kernel_time" >> $KERNEL
     echo "$init_time" >> $INIT
 	echo "$unzip_time" >> $UNZIP
+	echo "$import_time" >> $IMPORT
     echo "$app_time" >> $APP
 done
 

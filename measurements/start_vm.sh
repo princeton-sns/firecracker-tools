@@ -46,7 +46,7 @@ touch $metricsfile
 #FC_MAC="$(printf '02:FC:00:00:%02X:%02X' $((VM_ID / 256)) $((VM_ID % 256)))"
  
 KERNEL_BOOT_ARGS="panic=1 pci=off reboot=k tsc=reliable quiet 8250.nr_uarts=0 ipv6.disable=1"
-KERNEL_BOOT_ARGS="${KERNEL_BOOT_ARGS} ip=${FC_IP}::${TAP_IP}:${MASK_LONG}::eth0:off"
+#KERNEL_BOOT_ARGS="${KERNEL_BOOT_ARGS} ip=${FC_IP}::${TAP_IP}:${MASK_LONG}::eth0:off"
 #echo "$KERNEL_BOOT_ARGS"
 
 echo "Starting Firecracker VMM"
