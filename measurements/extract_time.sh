@@ -5,23 +5,26 @@ DATA_DIR="output"
 DEST="$PWD/data.log"
 KERNEL="$PWD/kernel.log"
 INIT="$PWD/init.log"
-PY="$PWD/python.log"
+UNZIP="$PWD/unzip.log"
+APP="$PWD/python.log"
 
 rm -f $DEST
 
 pushd $DATA_DIR > /dev/null
 
-COUNT=`ls fc-sb* | sort -V | tail -1 | cut -d '-' -f 2 | cut -f 2 -d 'b'`
+COUNT=`ls fc-log* | sort -V | tail -1 | cut -d '-' -f 3 | cut -f 2 -d 'b'`
 
 for i in `seq 0 $COUNT`
 do
-    kernel_time=`grep Guest-boot fc-sb${i}-log | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==1'`
-    init_time=`grep Guest-boot fc-sb${i}-log | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==2'`
-    python_time=`grep Guest-boot fc-sb${i}-log | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==3'`
+    kernel_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==1'`
+    init_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==2'`
+    unzip_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==3'`
+    app_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==4'`
     #echo "$i boot $boot_time ms" >> $DEST
     echo "$kernel_time" >> $KERNEL
     echo "$init_time" >> $INIT
-    echo "$python_time" >> $PY
+	echo "$unzip_time" >> $UNZIP
+    echo "$app_time" >> $APP
 done
 
 popd > /dev/null
