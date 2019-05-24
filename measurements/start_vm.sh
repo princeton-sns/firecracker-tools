@@ -145,16 +145,16 @@ curl_put '/drives/rootfs' <<EOF
 }
 EOF
 
-echo ""
-echo ""
-echo "configuring virtual network interface"
-curl_put '/network-interfaces/1' <<EOF
-{
-  "iface_id": "1",
-  "guest_mac": "$FC_MAC",
-  "host_dev_name": "$TAP_DEV"
-}
-EOF
+#echo ""
+#echo ""
+#echo "configuring virtual network interface"
+#curl_put '/network-interfaces/1' <<EOF
+#{
+#  "iface_id": "1",
+#  "guest_mac": "$FC_MAC",
+#  "host_dev_name": "$TAP_DEV"
+#}
+#EOF
 
 echo ""
 echo ""
