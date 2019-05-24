@@ -3,8 +3,8 @@
 # Configure the TAP network interface for COUNT many microVMs
 # The number of microVMs should be passed in as the first argument
 
-NET="${2:nonet}"
 COUNT="${1:-5}"
+NET="${2:-nonet}"
 
 # /output is for all VM logs
 rm -rf output
@@ -29,4 +29,3 @@ if [ $NET != "nonet" ]; then
         ./network_tap_setup.sh $i
     done
 fi
-
