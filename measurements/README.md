@@ -80,8 +80,11 @@ gcc my-rootfs/srv/ts.c -o my-rootfs/srv/ts
 
 ## Create app-specific rootfs
 `./create_rootfs.sh <path-to-base-rootfs> <path-to-target-rootfs> <path-to-app>`
+
 It creates a new `ext4` file for the app based on the `base rootfs` and copies the
 content of the app directory to `/srv` of the target rootfs.
+
+See `create_workload_rootfs.sh` for examples
 
 # Latency Measurement
 TODO
