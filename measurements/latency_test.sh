@@ -2,7 +2,9 @@
 #
 #
 COUNT="${1:-5}"
-NET="${2:nonet}"
+KERNEL="${2}"
+FS="${3}"
+NET="${4:-nonet}"
 
 # initialze system (network interfaces)
 ./sys_setup.sh $COUNT $NET
@@ -10,7 +12,7 @@ NET="${2:nonet}"
 echo "Start latency ($COUNT)test @ `date`"
 START_TS=`date +%s%N | cut -b1-13`
 
-./start_many.sh 0 $COUNT &
+./start_many.sh 0 $COUNT $KERNEL $FS&
 pids[${i}]=$!
 echo PID $pids
 
