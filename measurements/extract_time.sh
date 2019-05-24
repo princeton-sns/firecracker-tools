@@ -14,6 +14,7 @@ rm -f $DEST
 pushd $DATA_DIR > /dev/null
 
 COUNT=`ls fc-log* | sort -V | tail -1 | cut -d '-' -f 3 | cut -f 2 -d 'b'`
+echo "$COUNT VM instances"
 
 for i in `seq 0 $COUNT`
 do
