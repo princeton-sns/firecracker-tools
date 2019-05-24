@@ -19,6 +19,10 @@ run under firecracker-tools/measurements
 apk update
 apk add openrc util-linux python3 python3-dev python2 python2-dev vim bash gcc g++ zip unzip
 ```
+And a couple packages so that our workload can run
+```
+pip3 install markdown textblob
+```
 
 ### change root passwd (for debugging only)
 `passwd`
