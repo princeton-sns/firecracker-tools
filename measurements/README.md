@@ -1,4 +1,7 @@
 # Create the right rootfs for an app
+To create the right rootfs for an app, first create a base rootfs capable
+of running python or js. Then from that base rootfs, create app-specific
+rootfs using `create_rootfs.sh`.
 
 ## Create Python Base rootfs
 ### create the ext4 file
@@ -75,5 +78,11 @@ gcc my-rootfs/srv/ts.c -o my-rootfs/srv/ts
 ### copying workload.sh into /srv
 `cp ref-rootfs/workload.sh my-rootfs/srv`
 
-exit
+## Create app-specific rootfs
+`./create_rootfs.sh <path-to-base-rootfs> <path-to-target-rootfs> <path-to-app>`
+It creates a new `ext4` file for the app based on the `base rootfs` and copies the
+content of the app directory to `/srv` of the target rootfs.
+
+# Latency Measurement
+TODO
 
