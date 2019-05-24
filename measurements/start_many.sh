@@ -11,5 +11,6 @@ do
 	LOG="output/fc-log-${i}"
 	METRIC="output/fc-sb${i}-metrics"
     ./start_vm.sh "$i" $KERNEL $FS $API_SOCKET $LOG $METRIC
+	sleep 0.5
 
 done
