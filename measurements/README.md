@@ -79,13 +79,27 @@ gcc my-rootfs/srv/ts.c -o my-rootfs/srv/ts
 `cp ref-rootfs/workload.sh my-rootfs/srv`
 
 ## Create app-specific rootfs
+Once you have a base rootfs (that can run python for example), you can start building
+app-specific rootfs.
+
 `./create_rootfs.sh <path-to-base-rootfs> <path-to-target-rootfs> <path-to-app>`
 
 It creates a new `ext4` file for the app based on the `base rootfs` and copies the
 content of the app directory to `/srv` of the target rootfs.
 
-See `create_workload_rootfs.sh` for examples
+See `create_workload_rootfs.sh` for examples.
+
+For current testing workloads, adapt `create_workload_rootfs.sh` to create rootfs
+for all apps in batch.
 
 # Latency Measurement
-TODO
 
+`./latency_test.sh <num_vms> <kernel> <rootfs> <network>`
+
+The last option is to specify if the VMs need network or not. Leaving it unspecified
+will default to no network.
+
+Running the `latency_test` will output all VMs' logs to `$PWD/output`.
+You will see files like `fc-log-0` in that directory.
+Once those log files are generated, use `extract_time.sh` to extract latency numbers
+for different stages of the function's lifetime.
