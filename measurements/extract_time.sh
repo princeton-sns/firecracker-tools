@@ -2,14 +2,13 @@
 
 #DATA_DIR=${1:-.}
 DATA_DIR="output"
-DEST="$PWD/data.log"
 KERNEL="$PWD/kernel.log"
 INIT="$PWD/init.log"
-UNZIP="$PWD/unzip.log"
 IMPORT="$PWD/import.log"
 APP="$PWD/app.log"
+FC_SETUP="$PWD/fc_setup.log"
 
-rm -f $DEST
+rm -f $KERNEL $INIT $IMPORT $APP $FC_SETUP
 
 pushd $DATA_DIR > /dev/null
 
@@ -18,15 +17,14 @@ echo "$COUNT VM instances"
 
 for i in `seq 0 $COUNT`
 do
+    fc_setup_time=`grep FC-guest fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ':' | cut -f 2 -d ' '`
     kernel_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==1'`
     init_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==2'`
-    unzip_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==3'`
-    import_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==4'`
-    app_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==5'`
-    #echo "$i boot $boot_time ms" >> $DEST
+    import_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==3'`
+    app_time=`grep Guest-boot fc-log-${i} | cut -f 2 -d '=' |cut -f 2 -d ',' |  cut -f 5 -d ' ' | awk 'NR==4'`
+	echo "$fc_setup_time" >>$FC_SETUP
     echo "$kernel_time" >> $KERNEL
     echo "$init_time" >> $INIT
-	echo "$unzip_time" >> $UNZIP
 	echo "$import_time" >> $IMPORT
     echo "$app_time" >> $APP
 done
