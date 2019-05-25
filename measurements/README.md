@@ -103,3 +103,11 @@ Running the `latency_test` will output all VMs' logs to `$PWD/output`.
 You will see files like `fc-log-0` in that directory.
 Once those log files are generated, use `extract_time.sh` to extract latency numbers
 for different stages of the function's lifetime.
+
+To tie it all together, the workflow is:
+1. create a base rootfs (this is the only non-automated step but just need to do once)
+2. create app-specific rootfs (with `create_rootfs.sh`)
+3. run latency test (with `latency_test.sh`)
+4. extract latency data (with `extract_time.sh`)
+5. do analysis
+
