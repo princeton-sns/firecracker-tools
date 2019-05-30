@@ -1,0 +1,6 @@
+#!/sbin/openrc-run
+
+command="/srv/workload.sh"
+command_background="yes"
+pidfile="/tmp/workload.pid"
+

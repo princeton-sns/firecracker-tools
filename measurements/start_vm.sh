@@ -10,39 +10,48 @@
 
 
 VM_ID="${1:-0}"
+IMAGE="${2}"
+FS="${3}"
+API_SOCKET="${4}"
+LOG="${5}"
+METRIC="${6}"
 
-RO_DRIVE="$PWD/images/xenial.rootfs.ext4"
-KERNEL="$PWD/images/vmlinux"
-TAP_DEV="fc-tap${VM_ID}"
-API_SOCKET="/tmp/firecracker-sb${VM_ID}.sock"
-logfile="$PWD/output/fc-sb${VM_ID}-log"
-metricsfile="$PWD/output/fc-sb${VM_ID}-metrics"
+logfile="$PWD/$LOG"
+metricsfile="$PWD/$METRIC"
+
+RO_DRIVE="$PWD/$FS"
+KERNEL="$PWD/$IMAGE"
+#TAP_DEV="fc-tap${VM_ID}"
+
+#API_SOCKET="/tmp/firecracker-sb${VM_ID}.sock"
+#logfile="$PWD/output/fc-sb${VM_ID}-log"
+#metricsfile="$PWD/output/fc-sb${VM_ID}-metrics"
 #metricsfile="/dev/null"
 
-:<<END
 echo "Filesystem: $RO_DRIVE"
 echo "Kernel image: $KERNEL"
 echo "TAP interface: $TAP_DEV"
 echo "API_SOCKET: $API_SOCKET"
-END
+echo "Logfile: $logfile"
+echo "Metricsfile: $metricsfile"
 
 
 touch $logfile
 touch $metricsfile
 
 # Setup TAP device that uses proxy ARP
-MASK_LONG="255.255.255.252"
-FC_IP="$(printf '169.254.%s.%s' $(((4 * VM_ID + 1) / 256)) $(((4 * VM_ID + 1) % 256)))"
-TAP_IP="$(printf '169.254.%s.%s' $(((4 * VM_ID + 2) / 256)) $(((4 * VM_ID + 2) % 256)))"
-FC_MAC="$(printf '02:FC:00:00:%02X:%02X' $((VM_ID / 256)) $((VM_ID % 256)))"
+#MASK_LONG="255.255.255.252"
+#FC_IP="$(printf '169.254.%s.%s' $(((4 * VM_ID + 1) / 256)) $(((4 * VM_ID + 1) % 256)))"
+#TAP_IP="$(printf '169.254.%s.%s' $(((4 * VM_ID + 2) / 256)) $(((4 * VM_ID + 2) % 256)))"
+#FC_MAC="$(printf '02:FC:00:00:%02X:%02X' $((VM_ID / 256)) $((VM_ID % 256)))"
  
 KERNEL_BOOT_ARGS="panic=1 pci=off reboot=k tsc=reliable quiet 8250.nr_uarts=0 ipv6.disable=1"
-KERNEL_BOOT_ARGS="${KERNEL_BOOT_ARGS} ip=${FC_IP}::${TAP_IP}:${MASK_LONG}::eth0:off"
+#KERNEL_BOOT_ARGS="${KERNEL_BOOT_ARGS} ip=${FC_IP}::${TAP_IP}:${MASK_LONG}::eth0:off"
 #echo "$KERNEL_BOOT_ARGS"
 
 echo "Starting Firecracker VMM"
 rm -f "$API_SOCKET"
-./firecracker --api-sock "$API_SOCKET" --context '{"id": "fc-'${VM_ID}'", "jailed": false, "seccomp_level": 0, "start_time_us": 0, "start_time_cpu_us": 0}' &
+./firecracker --api-sock "$API_SOCKET" --id "fc-${VM_ID}" --seccomp-level 0 &
 
 # Wait for API server to start
 while [ ! -e "$API_SOCKET" ]; do
@@ -136,16 +145,16 @@ curl_put '/drives/rootfs' <<EOF
 }
 EOF
 
-echo ""
-echo ""
-echo "configuring virtual network interface"
-curl_put '/network-interfaces/1' <<EOF
-{
-  "iface_id": "1",
-  "guest_mac": "$FC_MAC",
-  "host_dev_name": "$TAP_DEV"
-}
-EOF
+#echo ""
+#echo ""
+#echo "configuring virtual network interface"
+#curl_put '/network-interfaces/1' <<EOF
+#{
+#  "iface_id": "1",
+#  "guest_mac": "$FC_MAC",
+#  "host_dev_name": "$TAP_DEV"
+#}
+#EOF
 
 echo ""
 echo ""
