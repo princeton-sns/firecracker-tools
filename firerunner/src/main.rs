@@ -24,6 +24,14 @@ fn main() {
         .author(crate_authors!())
         .about("Launch a microvm.")
         .arg(
+            Arg::with_name("from_file")
+                .short("f")
+                .long("from_file")
+                .takes_value(false)
+                .required(false)
+                .help("Whether load vcpu's regs and sregs from regs_sregs or not")
+        )
+        .arg(
             Arg::with_name("kernel")
                 .short("k")
                 .long("kernel")
@@ -39,7 +47,7 @@ fn main() {
                 .value_name("CMD_LINE")
                 .takes_value(true)
                 .required(false)
-                .default_value("console=ttyS0 reboot=k panic=1 pci=off")
+                .default_value("console=ttyS0 reboot=k panic=1 pci=off nokaslr")
                 .help("Command line to pass to the kernel")
         )
         .arg(
@@ -88,6 +96,12 @@ fn main() {
     let rootfs = cmd_arguments.value_of("rootfs").unwrap().to_string();
     let appfs = cmd_arguments.value_of("appfs");
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
+    if cmd_arguments.is_present("from_file") {
+        unsafe { vmm::FROM_FILE = true };
+        println!("load regs and sregs from regs_sregs");
+    } else {
+        println!("start from the beginning");
+    }
 
     // It's safe to unwrap here because clap's been provided with a default value
     let instance_id = cmd_arguments.value_of("id").unwrap().to_string();

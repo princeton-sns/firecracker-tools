@@ -18,4 +18,5 @@ do
 	mv boot_mem_dump mem_dump/boot_$i
 	mv init_mem_dump mem_dump/init_$i
 	mv python_mem_dump mem_dump/python_$i
+	mv boot_dirty_log mem_dump/boot_dirty_$i
 done
