@@ -77,6 +77,21 @@ gcc my-rootfs/srv/ts.c -o my-rootfs/srv/ts
 
 ### copying workload.sh into /srv
 `cp ref-rootfs/workload.sh my-rootfs/srv`
+## Create node js base rootfs
+The main difference between node base and python base is that node base needs the program
+to add entropy before node.js is invoked. Otherwise, the node interpreter cannot start
+due to blocking call to `getrandom()`.
+```
+cp ref-rootfs/add_entropy.c my-rootfs/srv
+gcc my-rootfs/srv/add_entropy.c -o my-rootfs/srv/rng
+```
+And don't forget to modify the `workload.sh` file to call `/srv/rng` before `/srv/app.sh`.
+
+Also, it needs slightly different set of packages:
+```
+apk add openrc util-linux vim bash gcc g++ tesseract-ocr nodejs
+```
+`tesseract-ocr` is for the ocr-img application. 
 
 ## Create app-specific rootfs
 Once you have a base rootfs (that can run python for example), you can start building
