@@ -16,6 +16,7 @@ use vmm::{VmmAction, VmmActionError, VmmData};
 use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 use vmm::vmm_config::boot_source::BootSourceConfig;
 use vmm::vmm_config::drive::BlockDeviceConfig;
+use vmm::vmm_config::machine_config::VmConfig;
 use sys_util::EventFd;
 
 fn main() {
@@ -29,7 +30,7 @@ fn main() {
                 .long("from_file")
                 .takes_value(false)
                 .required(false)
-                .help("Whether load vcpu's regs and sregs from regs_sregs or not")
+                .help("if specified start VM from a snapshot")
         )
         .arg(
             Arg::with_name("dump")
@@ -37,7 +38,7 @@ fn main() {
                 .long("dump")
                 .takes_value(false)
                 .required(false)
-                .help("Whether load vcpu's regs and sregs from regs_sregs or not")
+                .help("if specified creates a snapshot after runtime is up")
         )
         .arg(
             Arg::with_name("kernel")
@@ -60,7 +61,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("rootfs")
-                .long("r")
+                .short("r")
                 .long("rootfs")
                 .value_name("ROOTFS")
                 .takes_value(true)
@@ -75,6 +76,14 @@ fn main() {
                 .takes_value(true)
                 .required(false)
                 .help("Path to the root file system")
+        )
+        .arg(
+            Arg::with_name("mem_size")
+                 .long("mem_size")
+                 .value_name("MEMSIZE")
+                 .takes_value(true)
+                 .required(false)
+                 .help("Guest memory size in MB (default is 128)")
         )
         .arg(
             Arg::with_name("id")
@@ -104,6 +113,7 @@ fn main() {
     let rootfs = cmd_arguments.value_of("rootfs").unwrap().to_string();
     let appfs = cmd_arguments.value_of("appfs");
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
+    let mem_size = cmd_arguments.value_of("mem_size");
     if cmd_arguments.is_present("from_file") {
         unsafe { vmm::FROM_FILE = true };
         println!("load regs and sregs from regs_sregs");
@@ -148,6 +158,12 @@ fn main() {
         event_fd,
     };
 
+    let mut machine_config = VmConfig::default();
+    if let Some(mem_size) = mem_size {
+        machine_config.mem_size_mib = Some(mem_size.parse::<usize>().unwrap());
+    }
+    vmm.set_configuration(machine_config).expect("set config");
+
     println!("Configuration: {:?}", vmm.get_configuration().expect("config"));
 
     let boot_config = BootSourceConfig {
@@ -188,6 +204,16 @@ struct VmmWrapper {
 }
 
 impl VmmWrapper {
+    fn set_configuration(&mut self, machine_config: VmConfig) -> Result<VmmData, VmmActionError> {
+        let (sync_sender, sync_receiver) = oneshot::channel();
+        let req = VmmAction::SetVmConfiguration(machine_config, sync_sender);
+        self.sender.send(Box::new(req)).map_err(|_| ()).expect("Couldn't set configuration");
+        self.event_fd.write(1).map_err(|_| ()).expect("Failed to signal");
+        sync_receiver.map(|i| {
+            i
+        }).wait().expect("set config")
+    }
+
     fn get_configuration(&mut self) -> Result<VmmData, VmmActionError> {
         let (sync_sender, sync_receiver) = oneshot::channel();
         let req = VmmAction::GetVmConfiguration(sync_sender);
