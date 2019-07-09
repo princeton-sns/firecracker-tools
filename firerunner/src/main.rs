@@ -57,7 +57,7 @@ fn main() {
                 .long("appfs")
                 .value_name("APPFS")
                 .takes_value(true)
-                .required(true)
+                .required(false)
                 .help("Path to the root file system")
         )
         .arg(
@@ -86,7 +86,7 @@ fn main() {
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
     let rootfs = cmd_arguments.value_of("rootfs").unwrap().to_string();
-    let appfs = cmd_arguments.value_of("appfs").unwrap().to_string();
+    let appfs = cmd_arguments.value_of("appfs");
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
 
     // It's safe to unwrap here because clap's been provided with a default value
@@ -140,15 +140,17 @@ fn main() {
         rate_limiter: None,
     };
     println!("{:?}", vmm.insert_block_device(block_config).expect("Rootfs"));
-    let block_config = BlockDeviceConfig {
-        drive_id: String::from("appfs"),
-        path_on_host: PathBuf::from(appfs),
-        is_root_device: false,
-        is_read_only: true,
-        partuuid: None,
-        rate_limiter: None,
-    };
-    println!("AppBlk {:?}", vmm.insert_block_device(block_config).expect("AppBlk"));
+    if let Some(appfs) = appfs {
+        let block_config = BlockDeviceConfig {
+            drive_id: String::from("appfs"),
+            path_on_host: PathBuf::from(appfs),
+            is_root_device: false,
+            is_read_only: true,
+            partuuid: None,
+            rate_limiter: None,
+        };
+        println!("AppBlk {:?}", vmm.insert_block_device(block_config).expect("AppBlk"));
+    }
 
     println!("Starting {:?}", vmm.start_instance().expect("Start"));
     println!("State {:?}", shared_info.read().expect("SharedInfo").state);
