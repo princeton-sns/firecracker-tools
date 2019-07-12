@@ -52,6 +52,15 @@ fn main() {
                 .help("Path to the root file system")
         )
         .arg(
+            Arg::with_name("appfs")
+                .long("a")
+                .long("appfs")
+                .value_name("APPFS")
+                .takes_value(true)
+                .required(false)
+                .help("Path to the root file system")
+        )
+        .arg(
             Arg::with_name("id")
                 .long("id")
                 .help("MicroVM unique identifier")
@@ -77,6 +86,7 @@ fn main() {
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
     let rootfs = cmd_arguments.value_of("rootfs").unwrap().to_string();
+    let appfs = cmd_arguments.value_of("appfs");
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
 
     // It's safe to unwrap here because clap's been provided with a default value
@@ -112,29 +122,39 @@ fn main() {
         sender,
         event_fd,
     };
-    let config = vmm.get_configuration().unwrap();
 
-    println!("Configuration: {:?}", config);
+    println!("Configuration: {:?}", vmm.get_configuration().expect("config"));
 
     let boot_config = BootSourceConfig {
         kernel_image_path: kernel,
         boot_args: Some(cmd_line),
     };
-    println!("{:?}", vmm.set_boot_source(boot_config).unwrap());
+    println!("{:?}", vmm.set_boot_source(boot_config).expect("bootsource"));
 
     let block_config = BlockDeviceConfig {
         drive_id: String::from("rootfs"),
         path_on_host: PathBuf::from(rootfs),
         is_root_device: true,
-        is_read_only: false,
+        is_read_only: true,
         partuuid: None,
         rate_limiter: None,
     };
-    println!("{:?}", vmm.insert_block_device(block_config).unwrap());
+    println!("{:?}", vmm.insert_block_device(block_config).expect("Rootfs"));
+    if let Some(appfs) = appfs {
+        let block_config = BlockDeviceConfig {
+            drive_id: String::from("appfs"),
+            path_on_host: PathBuf::from(appfs),
+            is_root_device: false,
+            is_read_only: true,
+            partuuid: None,
+            rate_limiter: None,
+        };
+        println!("AppBlk {:?}", vmm.insert_block_device(block_config).expect("AppBlk"));
+    }
 
-    println!("{:?}", vmm.start_instance().unwrap());
-    println!("{:?}", shared_info.read().unwrap().state);
-    vmm_thread_handle.join().unwrap();
+    println!("Starting {:?}", vmm.start_instance().expect("Start"));
+    println!("State {:?}", shared_info.read().expect("SharedInfo").state);
+    vmm_thread_handle.join().expect("Join");
 }
 
 struct VmmWrapper {
