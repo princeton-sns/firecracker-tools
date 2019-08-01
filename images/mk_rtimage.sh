@@ -54,7 +54,7 @@ sudo mount $OUTPUT $TMPDIR
 
 ## Execute the prelude, runtime script and postscript inside an Alpine docker container
 ## with the target root file system shared at `/my-rootfs` inside the container.
-cat prelude.sh $RUNTIME.sh postscript.sh | docker run -i --rm -v $TMPDIR:/my-rootfs alpine
+cat prelude.sh $RUNTIME postscript.sh | docker run -i --rm -v $TMPDIR:/my-rootfs alpine
 
 ## Cleanup
 sudo umount $TMPDIR
