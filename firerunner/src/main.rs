@@ -25,20 +25,20 @@ fn main() {
         .author(crate_authors!())
         .about("Launch a microvm.")
         .arg(
-            Arg::with_name("from_file")
+            Arg::with_name("load_dir")
                 .short("f")
-                .long("from_file")
-                .takes_value(false)
+                .long("load_from")
+                .takes_value(true)
                 .required(false)
-                .help("if specified start VM from a snapshot")
+                .help("if specified start VM from a snapshot under the given directory")
         )
         .arg(
-            Arg::with_name("dump")
+            Arg::with_name("dump_dir")
                 .short("d")
-                .long("dump")
-                .takes_value(false)
+                .long("dump_to")
+                .takes_value(true)
                 .required(false)
-                .help("if specified creates a snapshot after runtime is up")
+                .help("if specified creates a snapshot right after runtime is up under the given directory")
         )
         .arg(
             Arg::with_name("kernel")
@@ -114,15 +114,6 @@ fn main() {
     let appfs = cmd_arguments.value_of("appfs");
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
     let mem_size = cmd_arguments.value_of("mem_size");
-    if cmd_arguments.is_present("from_file") {
-        unsafe { vmm::FROM_FILE = true };
-        println!("load regs and sregs from regs_sregs");
-    } else {
-        println!("start from the beginning");
-    }
-    if cmd_arguments.is_present("dump") {
-        unsafe { vmm::DUMP = true };
-    }
 
     // It's safe to unwrap here because clap's been provided with a default value
     let instance_id = cmd_arguments.value_of("id").unwrap().to_string();
@@ -144,8 +135,16 @@ fn main() {
     let shared_info = Arc::new(RwLock::new(InstanceInfo {
         state: InstanceState::Uninitialized,
         id: instance_id,
+        load_dir: None,
+        dump_dir: None,
         vmm_version: crate_version!().to_string(),
     }));
+    if let Some(load_dir) = cmd_arguments.value_of("load_dir") {
+        shared_info.write().expect("SharedInfo").load_dir = Some(PathBuf::from(load_dir));
+    }
+    if let Some(dump_dir) = cmd_arguments.value_of("dump_dir") {
+        shared_info.write().expect("SharedInfo").dump_dir = Some(PathBuf::from(dump_dir));
+    }
 
     let (sender, recv) = channel();
     let event_fd = Rc::new(EventFd::new().expect("Cannot create EventFd"));
