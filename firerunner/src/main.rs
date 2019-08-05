@@ -175,7 +175,7 @@ fn main() {
         drive_id: String::from("rootfs"),
         path_on_host: PathBuf::from(rootfs),
         is_root_device: true,
-        is_read_only: true,
+        is_read_only: false,
         partuuid: None,
         rate_limiter: None,
     };
@@ -185,7 +185,7 @@ fn main() {
             drive_id: String::from("appfs"),
             path_on_host: PathBuf::from(appfs),
             is_root_device: false,
-            is_read_only: true,
+            is_read_only: false,
             partuuid: None,
             rate_limiter: None,
         };
