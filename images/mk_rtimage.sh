@@ -24,9 +24,30 @@ function print_runtimes() {
   done
 }
 
+DEBUG=""
+PARAMS=""
+while (( "$#" )); do
+  case "$1" in
+    -d|--debug)
+      DEBUG="debug.sh"
+      shift 1
+      ;;
+    -*|--*=) # unsupported flags
+      echo "Error: Unsupported flag $1" >&2
+      exit 1
+      ;;
+    *) # preserve positional arguments
+      PARAMS="$PARAMS $1"
+      shift
+      ;;
+  esac
+done
+
+eval set -- "$PARAMS"
+
 ## Check command line argument length
 if [ "$#" -ne 2 ]; then
-  echo "Usage: $0 [RUNTIME] [OUTPUT_FS_IMAGE]"
+  echo "Usage: $0 [--debug] [RUNTIME] [OUTPUT_FS_IMAGE]"
   print_runtimes
   exit 1
 fi
@@ -60,7 +81,7 @@ sudo mount $OUTPUT $TMPDIR
 
 ## Execute the prelude, runtime script and postscript inside an Alpine docker container
 ## with the target root file system shared at `/my-rootfs` inside the container.
-cat prelude.sh $RUNTIME/rootfs.sh postscript.sh | docker run -i --rm -v $TMPDIR:/my-rootfs -v $MYDIR/common:/common -v $RUNTIME:/runtime alpine
+cat prelude.sh $DEBUG $RUNTIME/rootfs.sh postscript.sh | docker run -i --rm -v $TMPDIR:/my-rootfs -v $MYDIR/common:/common -v $RUNTIME:/runtime alpine
 
 ## Cleanup
 sudo umount $TMPDIR
