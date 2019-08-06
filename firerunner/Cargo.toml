@@ -3,10 +3,19 @@ name = "firerunner"
 version = "0.1.0"
 authors = ["Amit Aryeh Levy <amit@amitlevy.com>"]
 
+[[bin]]
+name = "firerunner"
+path = "bins/main.rs"
+
+[lib]
+
+
 [dependencies]
 clap = "*"
 futures = "=0.1.18"
-vmm = { path = "../firecracker/vmm" }
+vmm = { path = "../firecracker/vmm", features = ["vsock"] }
 sys_util = { path = "../firecracker/sys_util" }
+nix = "0.14.*"
+libc = "*"
 
 [workspace]
