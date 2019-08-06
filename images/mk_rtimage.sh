@@ -31,14 +31,20 @@ if [ "$#" -ne 2 ]; then
   exit 1
 fi
 
-RUNTIME=runtimes/$1.sh
+RUNTIME=runtimes/$1
 OUTPUT=$2
 
-if [ ! -f "$RUNTIME" ]; then
+if [ ! -f "$RUNTIME"/rootfs.sh ]; then
   echo "Runtime \`$1\` not found."
   print_runtimes
   exit 1
 fi
+
+RUNTIME=$(realpath $RUNTIME)
+MYDIR=$(dirname $(realpath $0))
+
+make -C $RUNTIME
+make -C $MYDIR/common
 
 ## Create a temporary directory to mount the filesystem
 TMPDIR=`mktemp -d`
@@ -54,7 +60,7 @@ sudo mount $OUTPUT $TMPDIR
 
 ## Execute the prelude, runtime script and postscript inside an Alpine docker container
 ## with the target root file system shared at `/my-rootfs` inside the container.
-cat prelude.sh $RUNTIME postscript.sh | docker run -i --rm -v $TMPDIR:/my-rootfs alpine
+cat prelude.sh $RUNTIME/rootfs.sh postscript.sh | docker run -i --rm -v $TMPDIR:/my-rootfs -v $MYDIR/common:/common -v $RUNTIME:/runtime alpine
 
 ## Cleanup
 sudo umount $TMPDIR
