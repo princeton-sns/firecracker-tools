@@ -1,0 +1,16 @@
+{
+  "name": "node-ts",
+  "version": "1.0.0",
+  "description": "An native extension to write to an IO port",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Yue Tan",
+  "license": "ISC",
+  "dependencies": {
+    "bindings": "1.5.0",
+    "node-addon-api": "1.6.3",
+    "node-gyp": "^5.0.3"
+  }
+}

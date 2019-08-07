@@ -1,0 +1,570 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="Docutils 0.11: http://docutils.sourceforge.net/" />
+<title>PortIO, python low level port I/O for Linux x86</title>
+<style type="text/css">
+
+/*
+:Author: David Goodger (goodger@python.org)
+:Id: $Id: html4css1.css 7614 2013-02-21 15:55:51Z milde $
+:Copyright: This stylesheet has been placed in the public domain.
+
+Default cascading style sheet for the HTML output of Docutils.
+
+See http://docutils.sf.net/docs/howto/html-stylesheets.html for how to
+customize this style sheet.
+*/
+
+/* used to remove borders from tables and images */
+.borderless, table.borderless td, table.borderless th {
+  border: 0 }
+
+table.borderless td, table.borderless th {
+  /* Override padding for "table.docutils td" with "! important".
+     The right padding separates the table cells. */
+  padding: 0 0.5em 0 0 ! important }
+
+.first {
+  /* Override more specific margin styles with "! important". */
+  margin-top: 0 ! important }
+
+.last, .with-subtitle {
+  margin-bottom: 0 ! important }
+
+.hidden {
+  display: none }
+
+a.toc-backref {
+  text-decoration: none ;
+  color: black }
+
+blockquote.epigraph {
+  margin: 2em 5em ; }
+
+dl.docutils dd {
+  margin-bottom: 0.5em }
+
+object[type="image/svg+xml"], object[type="application/x-shockwave-flash"] {
+  overflow: hidden;
+}
+
+/* Uncomment (and remove this text!) to get bold-faced definition list terms
+dl.docutils dt {
+  font-weight: bold }
+*/
+
+div.abstract {
+  margin: 2em 5em }
+
+div.abstract p.topic-title {
+  font-weight: bold ;
+  text-align: center }
+
+div.admonition, div.attention, div.caution, div.danger, div.error,
+div.hint, div.important, div.note, div.tip, div.warning {
+  margin: 2em ;
+  border: medium outset ;
+  padding: 1em }
+
+div.admonition p.admonition-title, div.hint p.admonition-title,
+div.important p.admonition-title, div.note p.admonition-title,
+div.tip p.admonition-title {
+  font-weight: bold ;
+  font-family: sans-serif }
+
+div.attention p.admonition-title, div.caution p.admonition-title,
+div.danger p.admonition-title, div.error p.admonition-title,
+div.warning p.admonition-title, .code .error {
+  color: red ;
+  font-weight: bold ;
+  font-family: sans-serif }
+
+/* Uncomment (and remove this text!) to get reduced vertical space in
+   compound paragraphs.
+div.compound .compound-first, div.compound .compound-middle {
+  margin-bottom: 0.5em }
+
+div.compound .compound-last, div.compound .compound-middle {
+  margin-top: 0.5em }
+*/
+
+div.dedication {
+  margin: 2em 5em ;
+  text-align: center ;
+  font-style: italic }
+
+div.dedication p.topic-title {
+  font-weight: bold ;
+  font-style: normal }
+
+div.figure {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+div.footer, div.header {
+  clear: both;
+  font-size: smaller }
+
+div.line-block {
+  display: block ;
+  margin-top: 1em ;
+  margin-bottom: 1em }
+
+div.line-block div.line-block {
+  margin-top: 0 ;
+  margin-bottom: 0 ;
+  margin-left: 1.5em }
+
+div.sidebar {
+  margin: 0 0 0.5em 1em ;
+  border: medium outset ;
+  padding: 1em ;
+  background-color: #ffffee ;
+  width: 40% ;
+  float: right ;
+  clear: right }
+
+div.sidebar p.rubric {
+  font-family: sans-serif ;
+  font-size: medium }
+
+div.system-messages {
+  margin: 5em }
+
+div.system-messages h1 {
+  color: red }
+
+div.system-message {
+  border: medium outset ;
+  padding: 1em }
+
+div.system-message p.system-message-title {
+  color: red ;
+  font-weight: bold }
+
+div.topic {
+  margin: 2em }
+
+h1.section-subtitle, h2.section-subtitle, h3.section-subtitle,
+h4.section-subtitle, h5.section-subtitle, h6.section-subtitle {
+  margin-top: 0.4em }
+
+h1.title {
+  text-align: center }
+
+h2.subtitle {
+  text-align: center }
+
+hr.docutils {
+  width: 75% }
+
+img.align-left, .figure.align-left, object.align-left {
+  clear: left ;
+  float: left ;
+  margin-right: 1em }
+
+img.align-right, .figure.align-right, object.align-right {
+  clear: right ;
+  float: right ;
+  margin-left: 1em }
+
+img.align-center, .figure.align-center, object.align-center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.align-left {
+  text-align: left }
+
+.align-center {
+  clear: both ;
+  text-align: center }
+
+.align-right {
+  text-align: right }
+
+/* reset inner alignment in figures */
+div.align-right {
+  text-align: inherit }
+
+/* div.align-center * { */
+/*   text-align: left } */
+
+ol.simple, ul.simple {
+  margin-bottom: 1em }
+
+ol.arabic {
+  list-style: decimal }
+
+ol.loweralpha {
+  list-style: lower-alpha }
+
+ol.upperalpha {
+  list-style: upper-alpha }
+
+ol.lowerroman {
+  list-style: lower-roman }
+
+ol.upperroman {
+  list-style: upper-roman }
+
+p.attribution {
+  text-align: right ;
+  margin-left: 50% }
+
+p.caption {
+  font-style: italic }
+
+p.credits {
+  font-style: italic ;
+  font-size: smaller }
+
+p.label {
+  white-space: nowrap }
+
+p.rubric {
+  font-weight: bold ;
+  font-size: larger ;
+  color: maroon ;
+  text-align: center }
+
+p.sidebar-title {
+  font-family: sans-serif ;
+  font-weight: bold ;
+  font-size: larger }
+
+p.sidebar-subtitle {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+p.topic-title {
+  font-weight: bold }
+
+pre.address {
+  margin-bottom: 0 ;
+  margin-top: 0 ;
+  font: inherit }
+
+pre.literal-block, pre.doctest-block, pre.math, pre.code {
+  margin-left: 2em ;
+  margin-right: 2em }
+
+pre.code .ln { color: grey; } /* line numbers */
+pre.code, code { background-color: #eeeeee }
+pre.code .comment, code .comment { color: #5C6576 }
+pre.code .keyword, code .keyword { color: #3B0D06; font-weight: bold }
+pre.code .literal.string, code .literal.string { color: #0C5404 }
+pre.code .name.builtin, code .name.builtin { color: #352B84 }
+pre.code .deleted, code .deleted { background-color: #DEB0A1}
+pre.code .inserted, code .inserted { background-color: #A3D289}
+
+span.classifier {
+  font-family: sans-serif ;
+  font-style: oblique }
+
+span.classifier-delimiter {
+  font-family: sans-serif ;
+  font-weight: bold }
+
+span.interpreted {
+  font-family: sans-serif }
+
+span.option {
+  white-space: nowrap }
+
+span.pre {
+  white-space: pre }
+
+span.problematic {
+  color: red }
+
+span.section-subtitle {
+  /* font-size relative to parent (h1..h6 element) */
+  font-size: 80% }
+
+table.citation {
+  border-left: solid 1px gray;
+  margin-left: 1px }
+
+table.docinfo {
+  margin: 2em 4em }
+
+table.docutils {
+  margin-top: 0.5em ;
+  margin-bottom: 0.5em }
+
+table.footnote {
+  border-left: solid 1px black;
+  margin-left: 1px }
+
+table.docutils td, table.docutils th,
+table.docinfo td, table.docinfo th {
+  padding-left: 0.5em ;
+  padding-right: 0.5em ;
+  vertical-align: top }
+
+table.docutils th.field-name, table.docinfo th.docinfo-name {
+  font-weight: bold ;
+  text-align: left ;
+  white-space: nowrap ;
+  padding-left: 0 }
+
+/* "booktabs" style (no vertical lines) */
+table.docutils.booktabs {
+  border: 0px;
+  border-top: 2px solid;
+  border-bottom: 2px solid;
+  border-collapse: collapse;
+}
+table.docutils.booktabs * {
+  border: 0px;
+}
+table.docutils.booktabs th {
+  border-bottom: thin solid;
+  text-align: left;
+}
+
+h1 tt.docutils, h2 tt.docutils, h3 tt.docutils,
+h4 tt.docutils, h5 tt.docutils, h6 tt.docutils {
+  font-size: 100% }
+
+ul.auto-toc {
+  list-style-type: none }
+
+</style>
+</head>
+<body>
+<div class="document" id="portio-python-low-level-port-i-o-for-linux-x86">
+<h1 class="title">PortIO, python low level port I/O for Linux x86</h1>
+
+<div class="section" id="what-is">
+<h1>What is</h1>
+<p>PortIO is a Python wrapper for the port I/O macros like <strong>outb, inb</strong>, etc.
+provided by the C library on Linux x86 platforms. Both python 2 and 3 are
+supported. This module is useful when a general pourpose port I/O at the low
+level is needed. Programmers that want to perform I/O on the parallel port
+at an higher level, will be better satisfied by the
+<a class="reference external" href="http://pyserial.sourceforge.net/pyparallel.html">pyParallel</a> module.
+A similar module <a class="reference external" href="http://www.hare.demon.co.uk/ioport/ioport.html">Ioport</a>
+has inspired the writing of PortIO.</p>
+<p>PortIO is released under the <a class="reference external" href="http://www.gnu.org/licenses/gpl.txt">GNU General Public License</a>.</p>
+<p><em>At present, version 0.5, PortIO is in beta status. Any debugging aid is
+welcome.</em></p>
+<p>For any question, suggestion, contribution contact the author
+<cite>Fabrizio Pollastri</cite> &lt;f.pollastri_a_t_inrim.it&gt;.</p>
+<p>The PortIO web site is hosted at <a class="reference external" href="http://portio.inrim.it/">http://portio.inrim.it/</a>.</p>
+</div>
+<div class="section" id="usage-example">
+<h1>Usage example</h1>
+<p>This sample program toggle on and off all the data lines of the parallel port
+lp0 with a 6 seconds period. Note the check for root privileges before
+the call to <strong>ioperm</strong> to acquire the proper I/O permissions for the involved
+ports.</p>
+<pre class="literal-block">
+
+
+import sys, time, os
+import portio
+
+# check for root privileges
+if os.getuid():
+  print('You need to be root! Exiting.')
+  sys.exit()
+
+# acquire permission for I/O on lp0
+status = portio.ioperm(0x378, 1, 1)
+if status:
+  print('ioperm:',os.strerror(status))
+  sys.exit()
+
+# toggle forever the data lines of lp0
+data = 0
+while 1:
+  lp0in = portio.inb(0x378)
+  portio.outb(data,0x378) 
+  print('read %x from lp0, written %x to lp0' % (lp0in,data))
+  data = ~data &amp; 0xff
+  time.sleep(3)
+
+
+</pre>
+<p>Download the sample program <a class="reference external" href="./toggle.py">toggle.py</a></p>
+</div>
+<div class="section" id="module-reference">
+<h1>Module reference</h1>
+<p>PortIO is a Python front end to the low level functions provided by the
+C library on Linux 386 platforms for the hardware input and output ports:
+<strong>outb, outw, outl, outsb, outsw, outsl, outb_p, outw_p, outl_p, inb, inw,
+inl, insb, insw, insl, inb_p, inw_p, inl_p, ioperm, iopl</strong>.</p>
+<p>Before doing port I/O, it is mandatory to acquire proper privileges by
+calling <strong>ioperm</strong> or <strong>iopl</strong>. Otherwise you will get a segmentation fault.</p>
+<dl class="docutils">
+<dt><strong>outb (data,port)</strong></dt>
+<dd>Output the byte <strong>data</strong> to the I/O address <strong>port</strong>.</dd>
+<dt><strong>outb_p (data,port)</strong></dt>
+<dd>The same as <strong>outb</strong>, but waits for I/O completion.</dd>
+<dt><strong>outw (data,port)</strong></dt>
+<dd>Output the 16 bit word <strong>data</strong> to the I/O address <strong>port</strong>.</dd>
+<dt><strong>outw_p (data,port)</strong></dt>
+<dd>The same as <strong>outw</strong>, but waits for I/O completion.</dd>
+<dt><strong>outl (data,port)</strong></dt>
+<dd>Output the 32 bit word <strong>data</strong> to the I/O address <strong>port</strong>.</dd>
+<dt><strong>outl_p (data,port)</strong></dt>
+<dd>The same as <strong>outl</strong>, but waits for I/O completion.</dd>
+<dt><strong>outsb (port,data,count)</strong></dt>
+<dd>Repeat <strong>count</strong> times the output of a byte to the I/O address <strong>port</strong>,
+reading it from buffer of bytes starting at <strong>data</strong> and with length
+<strong>count</strong>.</dd>
+<dt><strong>outsw (port,data,count)</strong></dt>
+<dd>Repeat <strong>count</strong> times the output of a 16 bit word to the I/O address
+<strong>port</strong>, reading it from buffer of 16 bit words starting at <strong>data</strong> and
+with length <strong>count</strong> x 2.</dd>
+<dt><strong>outsl (port,data,count)</strong></dt>
+<dd>Repeat <strong>count</strong> times the output of a 32 bit word to the I/O address
+<strong>port</strong>, reading it from buffer of 32 bit words starting at <strong>data</strong> and
+with length <strong>count</strong> x 4.</dd>
+<dt><strong>inb (port)</strong></dt>
+<dd>Input a byte from the I/O address <strong>port</strong> and return it as integer.</dd>
+<dt><strong>inb_p (port)</strong></dt>
+<dd>The same as <strong>inb</strong>, but waits for I/O completion.</dd>
+<dt><strong>inw (port)</strong></dt>
+<dd>Input a 16 bit word from the I/O address <strong>port</strong> and return it as integer.</dd>
+<dt><strong>inw_p (port)</strong></dt>
+<dd>The same as <strong>inw</strong>, but waits for I/O completion.</dd>
+<dt><strong>inl (port)</strong></dt>
+<dd>Input a 32 bit word from the I/O address <strong>port</strong> and return it as integer.</dd>
+<dt><strong>inl_p (port)</strong></dt>
+<dd>The same as <strong>inl</strong>, but waits for I/O completion.</dd>
+<dt><strong>insb (port,data,count)</strong></dt>
+<dd>Repeat <strong>count</strong> times the input of a byte from the I/O address <strong>port</strong>
+and write it to a buffer of bytes starting at <strong>data</strong> and with length
+<strong>count</strong> bytes.</dd>
+<dt><strong>insw (port,data,count)</strong></dt>
+<dd>Repeat <strong>count</strong> times the input of a 16 bit word from the I/O address
+<strong>port</strong> and write it to a buffer of 16 bit words starting at <strong>data</strong>
+and with length <strong>count</strong> x 2 bytes.</dd>
+<dt><strong>insl (port,data,count)</strong></dt>
+<dd>Repeat <strong>count</strong> times the input of a 32 bit word from the I/O address
+<strong>port</strong> and write it to a buffer of 32 bit words starting at <strong>data</strong>
+and with length <strong>count</strong> x 4 bytes.</dd>
+<dt><strong>ioperm (from,extent,enable)</strong></dt>
+<dd><p class="first">Set port access permission starting from address <strong>from</strong> for <strong>extent</strong>
+bytes. If the <strong>enable</strong> is True, access is enabled, otherwise is disabled.
+On success, zero is returned. On error, the errno code is returned.
+The use of ioperm requires root privileges.</p>
+<p class="last">Only the first 0x3ff I/O ports can be specified in this manner. To gain
+access to any I/O port in the whole (0x0000-0xffff) address range, use
+the iopl function.</p>
+</dd>
+<dt><strong>iopl (level)</strong></dt>
+<dd>Set the I/O privilege level of the current process. When <strong>level</strong> is 3
+access is granted to any I/O port.
+On success, zero is returned. On error, the errno code is returned.
+The use of iopl requires root privileges.</dd>
+</dl>
+</div>
+<div class="section" id="requirements">
+<h1>Requirements</h1>
+<p>A <strong>linux on an X86 architecture</strong>.</p>
+<p>To run the code, <strong>Python 2.6 or later</strong> or <strong>Python 3.0 or later</strong> must
+already be installed.  The latest release is recommended.  Python is
+available from <a class="reference external" href="http://www.python.org/">http://www.python.org/</a>.</p>
+</div>
+<div class="section" id="installation">
+<h1>Installation</h1>
+<div class="section" id="with-easy-install">
+<h2>With easy_install</h2>
+<ol class="arabic">
+<li><p class="first">Open a shell.</p>
+</li>
+<li><p class="first">Get root privileges and install the package. Command:</p>
+<pre class="literal-block">
+easy_install portio
+</pre>
+</li>
+</ol>
+</div>
+<div class="section" id="from-tarball">
+<h2>From tarball</h2>
+<p>Download PortIO tarball from <a class="reference external" href="http://portio.inrim.it/portio-0.5.tar.gz">http://portio.inrim.it/portio-0.5.tar.gz</a> .</p>
+<p>The first step is to expand the <tt class="docutils literal">.tgz</tt> archive in a temporary
+directory (<strong>not</strong> directly in Python's <tt class="docutils literal"><span class="pre">site-packages</span></tt>).  It
+contains a distutils setup file &quot;setup.py&quot;.</p>
+<ol class="arabic">
+<li><p class="first">Open a shell.</p>
+</li>
+<li><p class="first">Unpack the tarball in a temporary directory (<strong>not</strong> directly in
+Python's <tt class="docutils literal"><span class="pre">site-packages</span></tt>). Command:</p>
+<pre class="literal-block">
+tar zxf portio-X.Y.tar.gz
+</pre>
+<p>X and Y are the major and minor version numbers of the tarball.</p>
+</li>
+</ol>
+<ol class="arabic" start="2">
+<li><p class="first">Go to the directory created by expanding the tarball. Command:</p>
+<pre class="literal-block">
+cd portio-X.Y
+</pre>
+</li>
+<li><p class="first">Get root privileges and install the package. Command:</p>
+<pre class="literal-block">
+su
+(enter root password)
+python setup.py install
+</pre>
+<p>If the python executable isn't on your path, you'll have to specify
+the complete path, such as /usr/local/bin/python.</p>
+</li>
+</ol>
+</div>
+</div>
+<div class="section" id="changelog">
+<h1>Changelog</h1>
+<p><strong>Portio 0.5 released 25-Oct-2012</strong></p>
+<ul class="simple">
+<li>Porting to python 3 (also contributed by Stjepan Henc &lt;sthenc_a_t_gmail.com&gt;.</li>
+</ul>
+<p><strong>Portio 0.4 released 25-Aug-2009</strong></p>
+<ul class="simple">
+<li>Fixed some argument type mismatch in I/O macros.</li>
+<li>Upgraded PyArg_ParseTuple format strings with the new &quot;unsigned&quot; formats
+available from python 2.3 . So portio now requires python version =&gt; 2.3 .</li>
+</ul>
+<p><strong>Portio 0.3 released 21-May-2009</strong></p>
+<ul class="simple">
+<li>Fixed missing documentation files.</li>
+</ul>
+<p><strong>Portio 0.2 released 11-Nov-2008</strong></p>
+<ul class="simple">
+<li>Added return of status code for <strong>ioperm</strong> and <strong>iopl</strong>.</li>
+<li>Fixed invalid argument type for <strong>ioperm</strong>.</li>
+<li>Updated <strong>toggle.py</strong> example with <strong>ioperm</strong> error check.</li>
+<li>Generated documentation with Sphinx.</li>
+</ul>
+<p><strong>Portio 0.1 released 23-Feb-2006</strong></p>
+<ul class="simple">
+<li>First release.</li>
+</ul>
+</div>
+<div class="section" id="credits">
+<h1>Credits</h1>
+<ul class="simple">
+<li>Thanks to Stjepan Henc &lt;sthenc_a_t_gmail.com&gt; for his contribution to python 3 porting.</li>
+</ul>
+<hr class="docutils" />
+<p>Copyright 2006-2012 by <cite>Fabrizio Pollastri</cite> &lt;f.pollastri_a_t_inrim.it&gt;</p>
+<!-- Local Variables:
+mode: indented-text
+indent-tabs-mode: nil
+sentence-end-double-space: t
+fill-column: 70
+End: -->
+</div>
+</div>
+</body>
+</html>
