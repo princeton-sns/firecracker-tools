@@ -5,7 +5,11 @@ authors = ["Amit Aryeh Levy <amit@amitlevy.com>"]
 
 [[bin]]
 name = "firerunner"
-path = "bins/main.rs"
+path = "bins/firerunner/main.rs"
+
+[[bin]]
+name = "controller"
+path = "bins/controller/main.rs"
 
 [lib]
 
@@ -17,5 +21,7 @@ vmm = { path = "../firecracker/vmm", features = ["vsock"] }
 sys_util = { path = "../firecracker/sys_util" }
 nix = "0.14.*"
 libc = "*"
+serde = { version = "*", features = ["derive"] }
+serde_json = "*"
 
 [workspace]

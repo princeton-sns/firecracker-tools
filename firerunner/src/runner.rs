@@ -10,8 +10,8 @@ pub struct VmAppConfig {
     pub instance_id: String,
     pub vsock_cid: u32,
     pub kernel: String,
-    pub rootfs: String,
-    pub appfs: Option<String>,
+    pub rootfs: PathBuf,
+    pub appfs: Option<PathBuf>,
     pub cmd_line: String,
     pub seccomp_level: u32,
 }
@@ -24,6 +24,10 @@ pub struct VmApp {
 impl VmApp {
     pub fn kill(self) {
         nix::sys::signal::kill(self.process, nix::sys::signal::Signal::SIGKILL).expect("Failed to kill child");
+        self.wait();
+    }
+
+    pub fn wait(self) {
         nix::sys::wait::waitpid(self.process, None).expect("Failed to kill child");
     }
 }
@@ -49,7 +53,7 @@ impl VmAppConfig {
 
                 let block_config = BlockDeviceConfig {
                     drive_id: String::from("rootfs"),
-                    path_on_host: PathBuf::from(self.rootfs),
+                    path_on_host: self.rootfs,
                     is_root_device: true,
                     is_read_only: true,
                     partuuid: None,
@@ -59,7 +63,7 @@ impl VmAppConfig {
                 if let Some(appfs) = self.appfs {
                     let block_config = BlockDeviceConfig {
                         drive_id: String::from("appfs"),
-                        path_on_host: PathBuf::from(appfs),
+                        path_on_host: appfs,
                         is_root_device: false,
                         is_read_only: true,
                         partuuid: None,

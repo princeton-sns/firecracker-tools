@@ -76,8 +76,8 @@ fn main() {
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
-    let rootfs = cmd_arguments.value_of("rootfs").unwrap().to_string();
-    let appfs = cmd_arguments.value_of("appfs").map(|s| s.to_string());
+    let rootfs = [cmd_arguments.value_of("rootfs").unwrap()].iter().collect();
+    let appfs = cmd_arguments.value_of("appfs").map(|s| [s].iter().collect());
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
 
     // It's safe to unwrap here because clap's been provided with a default value
@@ -110,32 +110,30 @@ fn main() {
     let mut listener = VsockListener::bind(vsock::VMADDR_CID_ANY, 1234).expect("vsock listen");
     if let Ok((mut connection, addr)) = listener.accept() {
         println!("Connection from {:?}", addr);
-        std::thread::spawn(move || {
-            fn handle_connection<C: Read + Write>(connection: &mut C, request: Vec<u8>) -> std::io::Result<Vec<u8>> {
-                connection.write_all(&[request.len() as u8])?;
-                connection.write_all(request.as_slice())?;
-                let mut lens = [0];
-                connection.read_exact(&mut lens)?;
-                if lens[0] == 0 {
-                    return Ok(vec![]);
-                }
-                let mut response = Vec::with_capacity(lens[0] as usize);
-                response.resize(lens[0] as usize, 0);
-                connection.read_exact(response.as_mut_slice())?;
-                Ok(response)
+        fn handle_connection<C: Read + Write>(connection: &mut C, request: Vec<u8>) -> std::io::Result<Vec<u8>> {
+            connection.write_all(&[request.len() as u8])?;
+            connection.write_all(request.as_slice())?;
+            let mut lens = [0];
+            connection.read_exact(&mut lens)?;
+            if lens[0] == 0 {
+                return Ok(vec![]);
             }
+            let mut response = Vec::with_capacity(lens[0] as usize);
+            response.resize(lens[0] as usize, 0);
+            connection.read_exact(response.as_mut_slice())?;
+            Ok(response)
+        }
 
-            let stdin = std::io::stdin();
+        let stdin = std::io::stdin();
 
-            for line in stdin.lock().lines().map(|l| l.unwrap()) {
-                if let Ok(response) = handle_connection(&mut connection, line.into_bytes()) {
-                    println!("{}", String::from_utf8(response).unwrap());
-                } else {
-                    break;
-                }
+        for line in stdin.lock().lines().map(|l| l.unwrap()) {
+            if let Ok(response) = handle_connection(&mut connection, line.into_bytes()) {
+                println!("{}", String::from_utf8(response).unwrap());
+            } else {
+                break;
             }
-            app.kill();
-        }).join().expect("join");
+        }
+        app.kill();
     }
 }
 
