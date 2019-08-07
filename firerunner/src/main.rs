@@ -86,6 +86,14 @@ fn main() {
                  .help("Guest memory size in MB (default is 128)")
         )
         .arg(
+            Arg::with_name("vcpu_cnt")
+                 .long("vcpu_count")
+                 .value_name("VCPUCOUNT")
+                 .takes_value(true)
+                 .required(false)
+                 .help("Number of vcpus (default is 1)")
+        )
+        .arg(
             Arg::with_name("id")
                 .long("id")
                 .help("MicroVM unique identifier")
@@ -114,6 +122,7 @@ fn main() {
     let appfs = cmd_arguments.value_of("appfs");
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
     let mem_size = cmd_arguments.value_of("mem_size");
+    let vcpu_cnt = cmd_arguments.value_of("vcpu_cnt");
 
     // It's safe to unwrap here because clap's been provided with a default value
     let instance_id = cmd_arguments.value_of("id").unwrap().to_string();
@@ -160,6 +169,9 @@ fn main() {
     let mut machine_config = VmConfig::default();
     if let Some(mem_size) = mem_size {
         machine_config.mem_size_mib = Some(mem_size.parse::<usize>().unwrap());
+    }
+    if let Some(vcpu_cnt) = vcpu_cnt {
+        machine_config.vcpu_count = Some(vcpu_cnt.parse::<u8>().unwrap());
     }
     vmm.set_configuration(machine_config).expect("set config");
 
