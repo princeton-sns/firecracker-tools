@@ -16,6 +16,7 @@ path = "bins/controller/main.rs"
 
 [dependencies]
 clap = "*"
+cgroups = "*"
 futures = "=0.1.18"
 vmm = { path = "../firecracker/vmm", features = ["vsock"] }
 sys_util = { path = "../firecracker/sys_util" }

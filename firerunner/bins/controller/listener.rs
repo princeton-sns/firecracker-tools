@@ -3,28 +3,31 @@ use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::{self, JoinHandle};
-use firerunner::vsock::{self, VsockListener, VsockStream};
+use firerunner::vsock::{self, VsockCloser, VsockListener, VsockStream};
 
 use super::request;
 
 pub struct RequestManager {
     listener: VsockListener,
-    channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, Sender<(String, Vec<u8>)>)>>>,
-    connections: BTreeMap<u32, JoinHandle<()>>
+    channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>)>>>,
+    connections: BTreeMap<u32, JoinHandle<()>>,
+    response_sender: Sender<(String, Vec<u8>)>,
 }
 
 impl RequestManager {
-    pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, Sender<(String, Vec<u8>)>)>>>) -> RequestManager {
+    pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>)>>>, response_sender: Sender<(String, Vec<u8>)>) -> RequestManager {
         RequestManager {
             listener: VsockListener::bind(vsock::VMADDR_CID_ANY, 1234).expect("vsock listen"),
             channels,
             connections: BTreeMap::new(),
+            response_sender,
         }
     }
 
     pub fn serve(&mut self) {
         while let Ok((connection, addr)) = self.listener.accept() {
-            if let Some((function, request_receiver, response_sender)) = self.channels.lock().expect("poisoned lock").remove(&addr.cid) {
+            if let Some((function, request_receiver)) = self.channels.lock().expect("poisoned lock").remove(&addr.cid) {
+                let response_sender = self.response_sender.clone();
                 self.connections.insert(addr.cid, thread::spawn(move || {
                     let mut conn_mgr = ConnectionManager {
                         function,
@@ -36,10 +39,12 @@ impl RequestManager {
                 }));
             }
         }
+        println!("Done listening");
     }
 
-    pub fn spawn(mut self) -> JoinHandle<()> {
-        thread::spawn(move || { self.serve() }) 
+    pub fn spawn(mut self) -> (JoinHandle<()>, VsockCloser) {
+        let closer = self.listener.closer();
+        (thread::spawn(move || { self.serve() }), closer)
     }
 }
 

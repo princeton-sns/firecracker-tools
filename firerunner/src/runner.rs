@@ -1,3 +1,4 @@
+use cgroups::{self, cgroup_builder::CgroupBuilder};
 use std::path::PathBuf;
 use nix::unistd::{self, Pid, ForkResult};
 use vmm::vmm_config::boot_source::BootSourceConfig;
@@ -14,6 +15,7 @@ pub struct VmAppConfig {
     pub appfs: Option<PathBuf>,
     pub cmd_line: String,
     pub seccomp_level: u32,
+    pub cpu_share: u64,
 }
 
 pub struct VmApp {
@@ -22,13 +24,19 @@ pub struct VmApp {
 }
 
 impl VmApp {
-    pub fn kill(self) {
+    pub fn kill(&mut self) {
         nix::sys::signal::kill(self.process, nix::sys::signal::Signal::SIGKILL).expect("Failed to kill child");
         self.wait();
     }
 
-    pub fn wait(self) {
+    pub fn wait(&mut self) {
         nix::sys::wait::waitpid(self.process, None).expect("Failed to kill child");
+    }
+}
+
+impl Drop for VmApp {
+    fn drop(&mut self) {
+        self.kill();
     }
 }
 
@@ -37,6 +45,14 @@ impl VmAppConfig {
         match unistd::fork() {
             Err(_) => panic!("Couldn't fork!!"),
             Ok(ForkResult::Parent { child, .. }) => {
+                let pid = child.as_raw() as u64;
+                let v1 = cgroups::hierarchies::V1::new();
+                let cgroup_name = self.instance_id.clone();
+                CgroupBuilder::new(cgroup_name.as_str(), &v1)
+                    .cpu()
+                        .shares(self.cpu_share)
+                        .done()
+                    .build().add_task(pid.into()).expect("Adding child to Cgroup");
                 return VmApp {
                     config: self,
                     process: child,

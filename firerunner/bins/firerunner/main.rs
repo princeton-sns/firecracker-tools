@@ -97,7 +97,7 @@ fn main() {
         .parse::<u32>()
         .unwrap();
 
-    let app = VmAppConfig {
+    let mut app = VmAppConfig {
         kernel,
         instance_id,
         rootfs,
@@ -105,6 +105,7 @@ fn main() {
         cmd_line,
         seccomp_level,
         vsock_cid: 42,
+        cpu_share: 1,
     }.run();
 
     let mut listener = VsockListener::bind(vsock::VMADDR_CID_ANY, 1234).expect("vsock listen");

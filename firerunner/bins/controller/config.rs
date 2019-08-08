@@ -20,7 +20,7 @@ impl Configuration {
         self.configs.insert(config.name.clone(), config);
     }
 
-    pub fn get(&mut self, name: &String) -> Option<FunctionConfig> {
+    pub fn get(&self, name: &String) -> Option<FunctionConfig> {
         self.configs.get(name).map(|c| {
             FunctionConfig {
                 name: c.name.clone(),
@@ -37,7 +37,7 @@ pub struct FunctionConfig {
     pub name: String,
     pub runtimefs: PathBuf,
     pub appfs: PathBuf,
-    pub vcpus: usize, // ignored for now
+    pub vcpus: u64, // ignored for now
     pub memory: usize, // ignored for now
 }
 
