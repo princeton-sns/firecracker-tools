@@ -1,5 +1,5 @@
 ## Make sure fstab exists and is empty
-cat > /etc/fstab
+echo -n > /etc/fstab
 
 ## Copy all relevant useful directories to /my-rootfs, where the target filesystem is mounted
 for d in bin etc lib root sbin usr home srv; do tar c "$d" | tar x -C /my-rootfs; done
