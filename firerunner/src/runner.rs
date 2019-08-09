@@ -1,4 +1,4 @@
-use cgroups::{self, cgroup_builder::CgroupBuilder};
+use cgroups::{self, Cgroup, cgroup_builder::CgroupBuilder};
 use std::path::PathBuf;
 use nix::unistd::{self, Pid, ForkResult};
 use vmm::vmm_config::boot_source::BootSourceConfig;
@@ -20,6 +20,7 @@ pub struct VmAppConfig {
 
 pub struct VmApp {
     pub config: VmAppConfig,
+    cgroup_name: PathBuf,
     pub process: Pid,
 }
 
@@ -37,6 +38,9 @@ impl VmApp {
 impl Drop for VmApp {
     fn drop(&mut self) {
         self.kill();
+        let v1 = cgroups::hierarchies::V1::new();
+        let cgroup = Cgroup::load(&v1, self.cgroup_name.to_str().unwrap());
+        cgroup.delete();
     }
 }
 
@@ -47,14 +51,20 @@ impl VmAppConfig {
             Ok(ForkResult::Parent { child, .. }) => {
                 let pid = child.as_raw() as u64;
                 let v1 = cgroups::hierarchies::V1::new();
-                let cgroup_name = self.instance_id.clone();
-                CgroupBuilder::new(cgroup_name.as_str(), &v1)
+                let cgroup_name = std::path::Path::new("firecracker").join(pid.to_string().as_str());
+                let cgroup = CgroupBuilder::new(cgroup_name.to_str().unwrap(), &v1)
                     .cpu()
                         .shares(self.cpu_share)
                         .done()
-                    .build().add_task(pid.into()).expect("Adding child to Cgroup");
+                    .build();
+                {
+                    use cgroups::Controller;
+                    let cpus: &cgroups::cpu::CpuController = cgroup.controller_of().unwrap();
+                    cpus.add_task(&(pid.into())).expect("Adding child to Cgroup");
+                }
                 return VmApp {
                     config: self,
+                    cgroup_name: cgroup_name.clone(),
                     process: child,
                 }
             },

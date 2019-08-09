@@ -1,5 +1,6 @@
 #[macro_use(crate_version, crate_authors)]
 extern crate clap;
+extern crate cgroups;
 extern crate firerunner;
 
 use std::io::{BufRead, Read, Write};

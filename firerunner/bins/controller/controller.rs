@@ -93,7 +93,7 @@ impl Inner {
                     self.channels.lock().expect("poisoned lock").insert(cid, (entry.key().clone(), req_receiver));
                     let app = VmAppConfig {
                         kernel: self.kernel.clone(),
-                        instance_id: String::from("lambda"),
+                        instance_id: config.name.clone(),
                         rootfs: config.runtimefs,
                         appfs: Some(config.appfs),
                         cmd_line: self.cmd_line.clone(),
