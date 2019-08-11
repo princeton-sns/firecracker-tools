@@ -37,8 +37,8 @@ pub struct FunctionConfig {
     pub name: String,
     pub runtimefs: PathBuf,
     pub appfs: PathBuf,
-    pub vcpus: u64, // ignored for now
-    pub memory: usize, // ignored for now
+    pub vcpus: u64,
+    pub memory: usize,
 }
 
 pub fn lorem_js() -> FunctionConfig {
@@ -46,8 +46,8 @@ pub fn lorem_js() -> FunctionConfig {
         name: String::from("loremjs"),
         runtimefs: PathBuf::from("nodejs.ext4"),
         appfs: PathBuf::from("loremjs.ext4"),
-        vcpus: 1, // ignored for now
-        memory: 128, // ignored for now
+        vcpus: 1,
+        memory: 128,
     }
 }
 
@@ -56,8 +56,8 @@ pub fn lorem_py2() -> FunctionConfig {
         name: String::from("lorempy2"),
         runtimefs: PathBuf::from("python2.ext4"),
         appfs: PathBuf::from("lorempy2.ext4"),
-        vcpus: 1, // ignored for now
-        memory: 128, // ignored for now
+        vcpus: 1,
+        memory: 128,
     }
 }
 
