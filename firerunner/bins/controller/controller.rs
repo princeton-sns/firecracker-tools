@@ -100,6 +100,9 @@ impl Inner {
                         seccomp_level: self.seccomp_level,
                         vsock_cid: cid,
                         cpu_share: config.vcpus,
+                        mem_size_mib: Some(config.memory),
+                        load_dir: None, // ignored by now
+                        dump_dir: None, // ignored by now
                     }.run();
 
                     req_sender.send(req).expect("sending request");

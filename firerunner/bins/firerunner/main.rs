@@ -4,6 +4,7 @@ extern crate cgroups;
 extern crate firerunner;
 
 use std::io::{BufRead, Read, Write};
+use std::path::PathBuf;
 
 use clap::{App, Arg};
 
@@ -45,7 +46,6 @@ fn main() {
         )
         .arg(
             Arg::with_name("appfs")
-                .long("a")
                 .long("appfs")
                 .value_name("APPFS")
                 .takes_value(true)
@@ -74,12 +74,46 @@ fn main() {
                 .default_value("0")
                 .possible_values(&["0", "1", "2"]),
         )
+        .arg(
+            Arg::with_name("load_dir")
+                .long("load_from")
+                .takes_value(true)
+                .required(false)
+                .help("if specified start VM from a snapshot under the given directory")
+        )
+        .arg(
+            Arg::with_name("dump_dir")
+                .long("dump_to")
+                .takes_value(true)
+                .required(false)
+                .help("if specified creates a snapshot right after runtime is up under the given directory")
+        )
+        .arg(
+            Arg::with_name("mem_size")
+                 .long("mem_size")
+                 .value_name("MEMSIZE")
+                 .takes_value(true)
+                 .required(false)
+                 .help("Guest memory size in MB (default is 128)")
+        )
+        .arg(
+            Arg::with_name("vcpu_count")
+                 .long("vcpu_count")
+                 .value_name("VCPUCOUNT")
+                 .takes_value(true)
+                 .required(false)
+                 .help("Number of vcpus (default is 1)")
+        )
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
     let rootfs = [cmd_arguments.value_of("rootfs").unwrap()].iter().collect();
     let appfs = cmd_arguments.value_of("appfs").map(|s| [s].iter().collect());
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
+    let mem_size_mib = cmd_arguments.value_of("mem_size").map(|x| x.parse::<usize>().unwrap());
+    let vcpu_count = cmd_arguments.value_of("vcpu_count").map(|x| x.parse::<u64>().unwrap());
+    let load_dir = cmd_arguments.value_of("load_dir").map(PathBuf::from);
+    let dump_dir = cmd_arguments.value_of("dump_dir").map(PathBuf::from);
 
     // It's safe to unwrap here because clap's been provided with a default value
     let instance_id = cmd_arguments.value_of("id").unwrap().to_string();
@@ -106,7 +140,10 @@ fn main() {
         cmd_line,
         seccomp_level,
         vsock_cid: 42,
-        cpu_share: 1,
+        cpu_share: vcpu_count.unwrap_or(1),
+        mem_size_mib,
+        load_dir,
+        dump_dir,
     }.run();
 
     let mut listener = VsockListener::bind(vsock::VMADDR_CID_ANY, 1234).expect("vsock listen");
