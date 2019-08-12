@@ -99,6 +99,8 @@ impl Inner {
                         cmd_line: self.cmd_line.clone(),
                         seccomp_level: self.seccomp_level,
                         vsock_cid: cid,
+                        // we really want this to be a function of VPU and memory count, so that
+                        // cpu_share is proportional to the size of the function
                         cpu_share: config.vcpus,
                         mem_size_mib: Some(config.memory),
                         load_dir: None, // ignored by now
