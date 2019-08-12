@@ -1,5 +1,6 @@
 #[macro_use(crate_version, crate_authors)]
 extern crate clap;
+extern crate cgroups;
 extern crate firerunner;
 
 use std::io::{BufRead, Read, Write};
@@ -45,7 +46,6 @@ fn main() {
         )
         .arg(
             Arg::with_name("appfs")
-                .long("a")
                 .long("appfs")
                 .value_name("APPFS")
                 .takes_value(true)
@@ -76,7 +76,6 @@ fn main() {
         )
         .arg(
             Arg::with_name("load_dir")
-                .short("f")
                 .long("load_from")
                 .takes_value(true)
                 .required(false)
@@ -84,7 +83,6 @@ fn main() {
         )
         .arg(
             Arg::with_name("dump_dir")
-                .short("d")
                 .long("dump_to")
                 .takes_value(true)
                 .required(false)
@@ -99,7 +97,7 @@ fn main() {
                  .help("Guest memory size in MB (default is 128)")
         )
         .arg(
-            Arg::with_name("vcpu_cnt")
+            Arg::with_name("vcpu_count")
                  .long("vcpu_count")
                  .value_name("VCPUCOUNT")
                  .takes_value(true)
@@ -109,11 +107,11 @@ fn main() {
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
-    let rootfs = cmd_arguments.value_of("rootfs").unwrap().to_string();
-    let appfs = cmd_arguments.value_of("appfs").map(|s| s.to_string());
+    let rootfs = [cmd_arguments.value_of("rootfs").unwrap()].iter().collect();
+    let appfs = cmd_arguments.value_of("appfs").map(|s| [s].iter().collect());
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
     let mem_size_mib = cmd_arguments.value_of("mem_size").map(|x| x.parse::<usize>().unwrap());
-    let vcpu_count = cmd_arguments.value_of("vcpu_cnt").map(|x| x.parse::<u8>().unwrap());
+    let vcpu_count = cmd_arguments.value_of("vcpu_count").map(|x| x.parse::<u64>().unwrap());
     let load_dir = cmd_arguments.value_of("load_dir").map(PathBuf::from);
     let dump_dir = cmd_arguments.value_of("dump_dir").map(PathBuf::from);
 
@@ -134,7 +132,7 @@ fn main() {
         .parse::<u32>()
         .unwrap();
 
-    let app = VmAppConfig {
+    let mut app = VmAppConfig {
         kernel,
         instance_id,
         rootfs,
@@ -142,8 +140,8 @@ fn main() {
         cmd_line,
         seccomp_level,
         vsock_cid: 42,
+        cpu_share: vcpu_count.unwrap_or(1),
         mem_size_mib,
-        vcpu_count,
         load_dir,
         dump_dir,
     }.run();
@@ -151,32 +149,30 @@ fn main() {
     let mut listener = VsockListener::bind(vsock::VMADDR_CID_ANY, 1234).expect("vsock listen");
     if let Ok((mut connection, addr)) = listener.accept() {
         println!("Connection from {:?}", addr);
-        std::thread::spawn(move || {
-            fn handle_connection<C: Read + Write>(connection: &mut C, request: Vec<u8>) -> std::io::Result<Vec<u8>> {
-                connection.write_all(&[request.len() as u8])?;
-                connection.write_all(request.as_slice())?;
-                let mut lens = [0];
-                connection.read_exact(&mut lens)?;
-                if lens[0] == 0 {
-                    return Ok(vec![]);
-                }
-                let mut response = Vec::with_capacity(lens[0] as usize);
-                response.resize(lens[0] as usize, 0);
-                connection.read_exact(response.as_mut_slice())?;
-                Ok(response)
+        fn handle_connection<C: Read + Write>(connection: &mut C, request: Vec<u8>) -> std::io::Result<Vec<u8>> {
+            connection.write_all(&[request.len() as u8])?;
+            connection.write_all(request.as_slice())?;
+            let mut lens = [0];
+            connection.read_exact(&mut lens)?;
+            if lens[0] == 0 {
+                return Ok(vec![]);
             }
+            let mut response = Vec::with_capacity(lens[0] as usize);
+            response.resize(lens[0] as usize, 0);
+            connection.read_exact(response.as_mut_slice())?;
+            Ok(response)
+        }
 
-            let stdin = std::io::stdin();
+        let stdin = std::io::stdin();
 
-            for line in stdin.lock().lines().map(|l| l.unwrap()) {
-                if let Ok(response) = handle_connection(&mut connection, line.into_bytes()) {
-                    println!("{}", String::from_utf8(response).unwrap());
-                } else {
-                    break;
-                }
+        for line in stdin.lock().lines().map(|l| l.unwrap()) {
+            if let Ok(response) = handle_connection(&mut connection, line.into_bytes()) {
+                println!("{}", String::from_utf8(response).unwrap());
+            } else {
+                break;
             }
-            app.kill();
-        }).join().expect("join");
+        }
+        app.kill();
     }
 }
 

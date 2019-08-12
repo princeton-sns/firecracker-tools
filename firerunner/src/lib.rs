@@ -1,3 +1,4 @@
+extern crate cgroups;
 extern crate futures;
 extern crate vmm;
 extern crate sys_util;

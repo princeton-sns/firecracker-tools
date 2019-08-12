@@ -1,3 +1,4 @@
+use cgroups::{self, Cgroup, cgroup_builder::CgroupBuilder};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use nix::unistd::{self, Pid, ForkResult};
@@ -13,25 +14,39 @@ pub struct VmAppConfig {
     pub instance_id: String,
     pub vsock_cid: u32,
     pub kernel: String,
-    pub rootfs: String,
-    pub appfs: Option<String>,
+    pub rootfs: PathBuf,
+    pub appfs: Option<PathBuf>,
     pub cmd_line: String,
     pub seccomp_level: u32,
+    pub cpu_share: u64,
     pub mem_size_mib: Option<usize>,
-    pub vcpu_count: Option<u8>,
-    pub load_dir: Option<PathBuf>,
-    pub dump_dir: Option<PathBuf>,
+    pub load_dir: Option<PathBuf>, // ignored by now
+    pub dump_dir: Option<PathBuf>, // ignored by now
 }
 
 pub struct VmApp {
     pub config: VmAppConfig,
+    cgroup_name: PathBuf,
     pub process: Pid,
 }
 
 impl VmApp {
-    pub fn kill(self) {
+    pub fn kill(&mut self) {
         nix::sys::signal::kill(self.process, nix::sys::signal::Signal::SIGKILL).expect("Failed to kill child");
+        self.wait();
+    }
+
+    pub fn wait(&mut self) {
         nix::sys::wait::waitpid(self.process, None).expect("Failed to kill child");
+    }
+}
+
+impl Drop for VmApp {
+    fn drop(&mut self) {
+        self.kill();
+        let v1 = cgroups::hierarchies::V1::new();
+        let cgroup = Cgroup::load(&v1, self.cgroup_name.to_str().unwrap());
+        cgroup.delete();
     }
 }
 
@@ -40,8 +55,22 @@ impl VmAppConfig {
         match unistd::fork() {
             Err(_) => panic!("Couldn't fork!!"),
             Ok(ForkResult::Parent { child, .. }) => {
+                let pid = child.as_raw() as u64;
+                let v1 = cgroups::hierarchies::V1::new();
+                let cgroup_name = std::path::Path::new("firecracker").join(pid.to_string().as_str());
+                let cgroup = CgroupBuilder::new(cgroup_name.to_str().unwrap(), &v1)
+                    .cpu()
+                        .shares(self.cpu_share)
+                        .done()
+                    .build();
+                {
+                    use cgroups::Controller;
+                    let cpus: &cgroups::cpu::CpuController = cgroup.controller_of().unwrap();
+                    cpus.add_task(&(pid.into())).expect("Adding child to Cgroup");
+                }
                 return VmApp {
                     config: self,
+                    cgroup_name: cgroup_name.clone(),
                     process: child,
                 }
             },
@@ -57,7 +86,7 @@ impl VmAppConfig {
                 let mut vmm = VmmWrapper::new(shared_info, self.seccomp_level);
 
                 let machine_config = VmConfig{
-                    vcpu_count: self.vcpu_count,
+                    vcpu_count: Some(self.cpu_share as u8),
                     mem_size_mib: self.mem_size_mib,
                     ..Default::default()
                 };
@@ -71,7 +100,7 @@ impl VmAppConfig {
 
                 let block_config = BlockDeviceConfig {
                     drive_id: String::from("rootfs"),
-                    path_on_host: PathBuf::from(self.rootfs),
+                    path_on_host: self.rootfs,
                     is_root_device: true,
                     is_read_only: true,
                     partuuid: None,
@@ -81,7 +110,7 @@ impl VmAppConfig {
                 if let Some(appfs) = self.appfs {
                     let block_config = BlockDeviceConfig {
                         drive_id: String::from("appfs"),
-                        path_on_host: PathBuf::from(appfs),
+                        path_on_host: appfs,
                         is_root_device: false,
                         is_read_only: true,
                         partuuid: None,

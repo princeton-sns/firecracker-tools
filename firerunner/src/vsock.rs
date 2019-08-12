@@ -58,6 +58,22 @@ impl VsockListener {
         };
         Ok((VsockStream(connection), sockaddr))
     }
+
+    pub fn closer(&mut self) -> VsockCloser {
+        VsockCloser(self.fd)
+    }
+}
+
+pub struct VsockCloser(RawFd);
+
+impl VsockCloser {
+    pub fn close(&mut self) -> io::Result<usize> {
+        let ret = unsafe { libc::close(self.0) };
+        if ret < 0 {
+            return Err(nix::errno::Errno::last().into());
+        }
+        Ok(ret as usize)
+    }
 }
 
 impl Read for VsockStream {
