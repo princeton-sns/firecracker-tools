@@ -46,11 +46,29 @@ fn main() {
                 .required(true)
                 .help("File containing JSON-lines with requests")
         )
+        .arg(
+            Arg::with_name("runtimefs dir")
+                .long("runtimefs_dir")
+                .value_name("RUNTIMEFS_DIR")
+                .takes_value(true)
+                .required(true)
+                .help("Directory containing all runtimefs images")
+        )
+        .arg(
+            Arg::with_name("appfs dir")
+                .long("appfs_dir")
+                .value_name("APPFS_DIR")
+                .takes_value(true)
+                .required(true)
+                .help("Directory containing all appfs images")
+        )
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
     let requests_file = std::fs::File::open(cmd_arguments.value_of("requests file").unwrap()).unwrap();
+    let runtimefs_dir = cmd_arguments.value_of("runtimefs dir").unwrap();
+    let appfs_dir = cmd_arguments.value_of("appfs dir").unwrap();
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -58,7 +76,7 @@ fn main() {
     let seccomp_level = 0;
 
     // init config
-    let mut app_configs = config::Configuration::new("../images/", "../images");
+    let mut app_configs = config::Configuration::new(runtimefs_dir, appfs_dir);
     app_configs.insert(config::lorem_js());
     app_configs.insert(config::lorem_py2());
 
