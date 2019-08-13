@@ -13,6 +13,5 @@ output.ext4: package
 	truncate -s 10M output.ext4
 	mkfs.ext4 output.ext4
 	sudo mount output.ext4 /tmp/lorem.out/
-	sudo cp -r * /tmp/lorem.out/
+	sudo cp -r package workload /tmp/lorem.out/
 	sudo umount /tmp/lorem.out/
-
