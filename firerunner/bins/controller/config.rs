@@ -1,6 +1,11 @@
+extern crate serde_yaml;
+
+use serde::{Deserialize};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::fs::File;
 
+// represents an in-memory function config store
 pub struct Configuration {
     configs: BTreeMap<String, FunctionConfig>,
     runtimefs_dir: PathBuf,
@@ -8,12 +13,19 @@ pub struct Configuration {
 }
 
 impl Configuration {
-    pub fn new<R: AsRef<Path>, A: AsRef<Path>>(runtimefs_dir: R, appfs_dir: A) -> Configuration {
-        Configuration {
+    pub fn new<R: AsRef<Path>, A: AsRef<Path>>(runtimefs_dir: R, appfs_dir: A, config_file: File) -> Configuration {
+        let mut config = Configuration {
             configs: BTreeMap::new(),
             runtimefs_dir: [runtimefs_dir].iter().collect(),
             appfs_dir: [appfs_dir].iter().collect(),
+        };
+
+        let apps: serde_yaml::Result<Vec<FunctionConfig>> = serde_yaml::from_reader(config_file);
+        for app in apps.unwrap() {
+            config.insert(app);
         }
+
+        return config;
     }
 
     pub fn insert(&mut self, config: FunctionConfig) {
@@ -31,33 +43,18 @@ impl Configuration {
             }
         })
     }
+
+    pub fn num_func(&self) -> usize {
+        self.configs.len()
+    }
 }
 
+#[derive(Debug, Deserialize)]
 pub struct FunctionConfig {
     pub name: String,
     pub runtimefs: PathBuf,
     pub appfs: PathBuf,
     pub vcpus: u64,
     pub memory: usize,
-}
-
-pub fn lorem_js() -> FunctionConfig {
-    FunctionConfig {
-        name: String::from("loremjs"),
-        runtimefs: PathBuf::from("nodejs.ext4"),
-        appfs: PathBuf::from("loremjs.ext4"),
-        vcpus: 1,
-        memory: 128,
-    }
-}
-
-pub fn lorem_py2() -> FunctionConfig {
-    FunctionConfig {
-        name: String::from("lorempy2"),
-        runtimefs: PathBuf::from("python2.ext4"),
-        appfs: PathBuf::from("lorempy2.ext4"),
-        vcpus: 1,
-        memory: 128,
-    }
 }
 

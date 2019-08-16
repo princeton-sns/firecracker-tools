@@ -47,6 +47,15 @@ fn main() {
                 .help("File containing JSON-lines with requests")
         )
         .arg(
+            Arg::with_name("function config file")
+                .short("f")
+                .long("fconfig")
+                .value_name("FUNCTION_CONFIG_FILE")
+                .takes_value(true)
+                .required(true)
+                .help("YAML file defining functions configurations")
+        )
+        .arg(
             Arg::with_name("runtimefs dir")
                 .long("runtimefs_dir")
                 .value_name("RUNTIMEFS_DIR")
@@ -66,9 +75,12 @@ fn main() {
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
-    let requests_file = std::fs::File::open(cmd_arguments.value_of("requests file").unwrap()).unwrap();
+    let requests_file = std::fs::File::open(cmd_arguments.value_of("requests file").unwrap())
+        .expect("Request file not found");
     let runtimefs_dir = cmd_arguments.value_of("runtimefs dir").unwrap();
     let appfs_dir = cmd_arguments.value_of("appfs dir").unwrap();
+    let func_config = std::fs::File::open(cmd_arguments.value_of("function config file").unwrap())
+        .expect("Function config file not found");
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -76,9 +88,8 @@ fn main() {
     let seccomp_level = 0;
 
     // init config
-    let mut app_configs = config::Configuration::new(runtimefs_dir, appfs_dir);
-    app_configs.insert(config::lorem_js());
-    app_configs.insert(config::lorem_py2());
+    let app_configs = config::Configuration::new(runtimefs_dir, appfs_dir, func_config);
+    println!("{} functions loaded", app_configs.num_func());
 
     let mut controller = controller::Controller::new(app_configs, seccomp_level, cmd_line, kernel);
 
