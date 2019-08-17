@@ -30,7 +30,7 @@ Currently, Firerunner uses vsock for passing input from host to guest VM and ret
 
 Check if vsock kernel module is already loaded with:
 
-`$ lsmod |grep vosck`
+`$ lsmod | grep vsock`
 
 If not, load it with `$ sudo modprobe vhost_vsock`
 
