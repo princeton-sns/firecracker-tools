@@ -3,24 +3,27 @@
 import sys
 import os
 import imp
-import struct
 import json
-from subprocess import Popen, PIPE
+from subprocess import call, Popen, PIPE
 
-vsock = Popen('nc-vsock 0 1234', shell=True, stdout=PIPE, stdin=PIPE)
-os.system("mount -r /dev/vdb /srv");
+# for snapshot
+call('outl 124 0x3f0', shell=True)
+
+os.system("mount -r /dev/vdb /srv")
 
 sys.path.append('/srv/package')
 app = imp.load_source('app', '/srv/workload')
 
-while True:
-    jsonlen = struct.unpack("@B", vsock.stdout.read(1))[0]
-    request = json.loads(vsock.stdout.read(jsonlen))
+with open('/dev/ttyS1', 'r') as tty:
+    # signal firerunner we are ready
+    call('outl 126 0x3f0', shell=True)
+    while True:
+        request = json.loads(tty.readline())
 
-    response = app.handle(request)
+        response = app.handle(request)
 
-    responseJson = json.dumps(response)
+        responseJson = json.dumps(response)
 
-    vsock.stdin.write(struct.pack("@B", len(responseJson)))
-    vsock.stdin.write(bytes(responseJson))
-    vsock.stdin.flush()
+        sys.stdout.write(responseJson)
+        sys.stdout.write('\n')
+        sys.stdout.flush()

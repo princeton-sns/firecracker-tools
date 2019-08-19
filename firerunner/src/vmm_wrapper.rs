@@ -2,6 +2,7 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::sync::mpsc::{channel, Sender};
 use std::thread::JoinHandle;
+use std::fs::File;
 
 use futures::Future;
 use futures::sync::oneshot;
@@ -22,12 +23,14 @@ pub struct VmmWrapper {
 
 impl VmmWrapper {
 
-    pub fn new(shared_info: Arc<RwLock<InstanceInfo>>, seccomp_level: u32) -> VmmWrapper {
+    pub fn new(shared_info: Arc<RwLock<InstanceInfo>>, seccomp_level: u32,
+               response_writer: File, requests_input: File, notifier: File) -> VmmWrapper {
             let (sender, receiver) = channel();
             let event_fd = Rc::new(EventFd::new().expect("Cannot create EventFd"));
 
             let thread_handle =
-                vmm::start_vmm_thread(shared_info.clone(), event_fd.try_clone().expect("Couldn't clone event_fd"), receiver, seccomp_level);
+                vmm::start_vmm_thread(shared_info.clone(), event_fd.try_clone().expect("Couldn't clone event_fd"), receiver, seccomp_level,
+                Some(response_writer), Some(requests_input), Some(notifier));
 
             VmmWrapper {
                 sender,

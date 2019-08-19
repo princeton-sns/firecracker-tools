@@ -1,10 +1,12 @@
 use cgroups::{self, Cgroup, cgroup_builder::CgroupBuilder};
 use std::path::PathBuf;
+use std::fs::File;
+use std::io::BufReader;
+use std::os::unix::io::FromRawFd;
 use std::sync::{Arc, RwLock};
 use nix::unistd::{self, Pid, ForkResult};
 use vmm::vmm_config::boot_source::BootSourceConfig;
 use vmm::vmm_config::drive::BlockDeviceConfig;
-use vmm::vmm_config::vsock::VsockDeviceConfig;
 use vmm::vmm_config::machine_config::VmConfig;
 use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 
@@ -28,6 +30,9 @@ pub struct VmApp {
     pub config: VmAppConfig,
     cgroup_name: PathBuf,
     pub process: Pid,
+    pub requests_input: File,
+    pub response_reader: BufReader<File>,
+    pub ready_checker: File,
 }
 
 impl VmApp {
@@ -52,6 +57,9 @@ impl Drop for VmApp {
 
 impl VmAppConfig {
     pub fn run(self) -> VmApp {
+        let (request_reader, request_writer) = nix::unistd::pipe().unwrap();
+        let (checker, notifier) = nix::unistd::pipe().unwrap();
+        let (response_reader, response_writer) = nix::unistd::pipe().unwrap();
         match unistd::fork() {
             Err(_) => panic!("Couldn't fork!!"),
             Ok(ForkResult::Parent { child, .. }) => {
@@ -72,6 +80,9 @@ impl VmAppConfig {
                     config: self,
                     cgroup_name: cgroup_name.clone(),
                     process: child,
+                    requests_input: unsafe { File::from_raw_fd(request_writer) },
+                    response_reader: BufReader::new(unsafe { File::from_raw_fd(response_reader) }),
+                    ready_checker: unsafe { File::from_raw_fd(checker) },
                 }
             },
             Ok(ForkResult::Child) => {
@@ -83,7 +94,10 @@ impl VmAppConfig {
                     dump_dir: self.dump_dir,
                 }));
 
-                let mut vmm = VmmWrapper::new(shared_info, self.seccomp_level);
+                let mut vmm = VmmWrapper::new(shared_info, self.seccomp_level,
+                                              unsafe { File::from_raw_fd(response_writer) },
+                                              unsafe { File::from_raw_fd(request_reader) },
+                                              unsafe { File::from_raw_fd(notifier) });
 
                 let machine_config = VmConfig{
                     vcpu_count: Some(self.cpu_share as u8),
@@ -118,8 +132,6 @@ impl VmAppConfig {
                     };
                     vmm.insert_block_device(block_config).expect("AppBlk");
                 }
-
-                vmm.add_vsock(VsockDeviceConfig { id: self.instance_id, guest_cid: self.vsock_cid }).expect("vsock");
 
                 vmm.start_instance().expect("Start");
                 vmm.join();
