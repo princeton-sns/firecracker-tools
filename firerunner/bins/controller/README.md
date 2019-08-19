@@ -34,8 +34,3 @@ after the fact by recursively deleting the cgroup namespace:
 ```bash
 $ sudo cgdelete -r cpu,cpuset:firecracker/
 ```
-
-### RootFSs and AppFSs
-
-The controller currently assumes that rootfs and appfs images are in
-`../images`.. TODO(alevy): fix this.
