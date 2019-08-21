@@ -8,11 +8,14 @@ use std::thread::{self, JoinHandle};
 use super::config;
 use super::listener;
 use super::request;
+use super::cluster;
 
 use firerunner::runner::{VmApp, VmAppConfig};
 use firerunner::vsock::VsockCloser;
 
+
 pub struct Inner {
+    cluster: cluster::Cluster,
     active_functions: Mutex<BTreeMap<String, (Sender<request::Request>, usize, VmApp)>>,
     warm_functions: Mutex<BTreeMap<String, (Sender<request::Request>, VmApp)>>,
     channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>)>>>,
@@ -30,9 +33,12 @@ pub struct Controller {
 }
 
 impl Controller {
-    pub fn new(function_configs: config::Configuration, seccomp_level: u32, cmd_line: String, kernel: String) -> Controller {
+    pub fn new(function_configs: config::Configuration, seccomp_level: u32,
+               cmd_line: String, kernel: String) -> Controller {
+
         Controller {
             inner: Arc::new(Inner {
+                cluster: cluster::Cluster::new(),
                 active_functions: Default::default(),
                 warm_functions: Default::default(),
                 channels: Default::default(),
@@ -73,21 +79,30 @@ impl Controller {
         self.vsock_closer.take().map(|mut c| c.close()).unwrap().unwrap();
         self.inner.warm_functions.lock().unwrap().clear();
     }
+
+    pub fn get_cluster_info(&self) -> &cluster::Cluster {
+        &self.inner.cluster
+    }
 }
 
 impl Inner {
     pub fn schedule(&self, req: request::Request) {
+
         match self.active_functions.lock().unwrap().entry(req.function.clone()) {
+
             Entry::Occupied(mut entry) => {
                 let (sender, outstanding, _app) = entry.get_mut();
                 *outstanding += 1;
                 sender.send(req).expect("sending request");
             },
+
             Entry::Vacant(entry) => {
                 if let Some((sender, app)) = self.warm_functions.lock().unwrap().remove(entry.key()) {
                     sender.send(req).expect("sending request");
                     entry.insert((sender, 1, app));
+
                 } else if let Some(config) = self.function_configs.get(entry.key()) {
+
                     let cid = self.max_channel.fetch_add(1, Ordering::Relaxed) as u32;
                     let (req_sender, req_receiver) = channel();
                     self.channels.lock().expect("poisoned lock").insert(cid, (entry.key().clone(), req_receiver));
@@ -109,8 +124,11 @@ impl Inner {
 
                     req_sender.send(req).expect("sending request");
                     entry.insert((req_sender, 1, app));
+
                 } else {
+
                     panic!("Bad function name {}", entry.key());
+
                 }
 
             },

@@ -3,6 +3,9 @@ extern crate clap;
 extern crate firerunner;
 extern crate serde;
 extern crate serde_json;
+extern crate vmm;
+extern crate nix;
+extern crate cgroups;
 
 use std::io::BufRead;
 
@@ -12,6 +15,7 @@ mod config;
 mod controller;
 mod request;
 mod listener;
+mod cluster;
 
 fn main() {
     let cmd_arguments = App::new("controller")
@@ -92,6 +96,7 @@ fn main() {
     println!("{} functions loaded", app_configs.num_func());
 
     let mut controller = controller::Controller::new(app_configs, seccomp_level, cmd_line, kernel);
+    println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();
 
