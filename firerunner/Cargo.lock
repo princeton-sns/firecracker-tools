@@ -209,7 +209,7 @@ dependencies = [
 [[package]]
 name = "kvm-bindings"
 version = "0.1.1"
-source = "git+https://github.com/princeton-sns/kvm-bindings#740676e1e3781266872b2ab9ad07515b5ea6bf67"
+source = "git+https://github.com/princeton-sns/kvm-bindings#6a54c0ae2aab688ab66d5c523b9f275e3441fde9"
 dependencies = [
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

@@ -4,10 +4,13 @@ import sys
 import os
 import imp
 import json
-from subprocess import call, Popen, PIPE
+from subprocess import call, Popen
+import multiprocessing as mp
 
 # for snapshot
-call('outl 124 0x3f0', shell=True)
+for i in range(1, mp.cpu_count()):
+    Popen('taskset -c %d outl 124 0x3f0'%(i), shell=True)
+call('taskset -c 0 outl 124 0x3f0', shell=True)
 
 os.system("mount -r /dev/vdb /srv")
 
