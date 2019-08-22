@@ -16,6 +16,7 @@ mod controller;
 mod request;
 mod listener;
 mod cluster;
+mod metrics;
 
 fn main() {
     let cmd_arguments = App::new("controller")
@@ -92,18 +93,27 @@ fn main() {
     let seccomp_level = 0;
 
     // init config
+    // Current implementation assumes that function config do not change after controller
+    // starts. That is, no live updates of function configs or adding functions.
     let app_configs = config::Configuration::new(runtimefs_dir, appfs_dir, func_config);
     println!("{} functions loaded", app_configs.num_func());
 
-    let mut controller = controller::Controller::new(app_configs, seccomp_level, cmd_line, kernel);
+    let mut controller = controller::Controller::new(app_configs.clone(), seccomp_level, cmd_line, kernel);
     println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();
 
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
         match request::parse_json(line) {
-            Ok(req) => controller.schedule(req),
-            Err(e) => panic!("{:?}", e)
+            Ok(req) => {
+                // Check function existence at the gateway
+                if !app_configs.exist(&req.function){
+                    println!("function {} doesn't exist", &req.function);
+                    continue;
+                }
+                controller.schedule(req);
+            },
+            Err(e) => panic!("Invalid request: {:?}", e)
         }
     }
 

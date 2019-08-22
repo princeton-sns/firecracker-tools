@@ -10,6 +10,7 @@ use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 
 use crate::vmm_wrapper::VmmWrapper;
 
+#[derive(Debug)]
 pub struct VmAppConfig {
     pub instance_id: String,
     pub vsock_cid: u32,
@@ -24,6 +25,7 @@ pub struct VmAppConfig {
     pub dump_dir: Option<PathBuf>, // ignored by now
 }
 
+#[derive(Debug)]
 pub struct VmApp {
     pub config: VmAppConfig,
     cgroup_name: PathBuf,

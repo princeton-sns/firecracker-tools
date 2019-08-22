@@ -11,11 +11,11 @@ pub struct RequestManager {
     listener: VsockListener,
     channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>)>>>,
     connections: BTreeMap<u32, JoinHandle<()>>,
-    response_sender: Sender<(String, Vec<u8>)>,
+    response_sender: Sender<(u32, String, Vec<u8>)>,
 }
 
 impl RequestManager {
-    pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>)>>>, response_sender: Sender<(String, Vec<u8>)>) -> RequestManager {
+    pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>)>>>, response_sender: Sender<(u32, String, Vec<u8>)>) -> RequestManager {
         RequestManager {
             listener: VsockListener::bind(vsock::VMADDR_CID_ANY, 1234).expect("vsock listen"),
             channels,
@@ -28,8 +28,10 @@ impl RequestManager {
         while let Ok((connection, addr)) = self.listener.accept() {
             if let Some((function, request_receiver)) = self.channels.lock().expect("poisoned lock").remove(&addr.cid) {
                 let response_sender = self.response_sender.clone();
+                let cid = addr.cid;
                 self.connections.insert(addr.cid, thread::spawn(move || {
                     let mut conn_mgr = ConnectionManager {
+                        cid,
                         function,
                         request_receiver,
                         response_sender,
@@ -49,9 +51,10 @@ impl RequestManager {
 }
 
 struct ConnectionManager {
+    cid:  u32,
     function: String,
     request_receiver: Receiver<request::Request>,
-    response_sender: Sender<(String, Vec<u8>)>,
+    response_sender: Sender<(u32, String, Vec<u8>)>,
     connection: VsockStream,
 }
 
@@ -75,10 +78,12 @@ impl ConnectionManager {
     fn handle_connection(&mut self) {
         for request in self.request_receiver.iter() {
             if let Ok(response) = Self::handle_request(&mut self.connection, request) {
-                self.response_sender.send((self.function.clone(), response)).unwrap();
+                self.response_sender.send((self.cid, self.function.clone(), response)).unwrap();
             } else {
+                println!("Error response from VM");
                 break;
             }
         }
+        println!("Connection Manager exit");
     }
 }
