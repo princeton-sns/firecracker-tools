@@ -29,7 +29,7 @@ rl.on('line', (line) => {
   let req = JSON.parse(line);
   app.handle(req, function(resp) {
     let respJS = JSON.stringify(resp);
+    process.stdout.write(Buffer.from([respJS.length]));
     process.stdout.write(respJS, "utf8");
-    process.stdout.write('\n');
   });
 });

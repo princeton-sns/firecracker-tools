@@ -24,13 +24,13 @@ pub struct VmmWrapper {
 impl VmmWrapper {
 
     pub fn new(shared_info: Arc<RwLock<InstanceInfo>>, seccomp_level: u32,
-               response_writer: File, requests_input: File, notifier: File) -> VmmWrapper {
+               response_writer: File, requests_input: File, notifier: File, notifier_id: u32) -> VmmWrapper {
             let (sender, receiver) = channel();
             let event_fd = Rc::new(EventFd::new().expect("Cannot create EventFd"));
 
             let thread_handle =
                 vmm::start_vmm_thread(shared_info.clone(), event_fd.try_clone().expect("Couldn't clone event_fd"), receiver, seccomp_level,
-                Some(response_writer), Some(requests_input), Some(notifier));
+                Some(response_writer), Some(requests_input), Some(notifier), notifier_id);
 
             VmmWrapper {
                 sender,

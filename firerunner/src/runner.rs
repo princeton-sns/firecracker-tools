@@ -1,7 +1,6 @@
 use cgroups::{self, Cgroup, cgroup_builder::CgroupBuilder};
 use std::path::PathBuf;
 use std::fs::File;
-use std::io::BufReader;
 use std::os::unix::io::FromRawFd;
 use std::sync::{Arc, RwLock};
 use nix::unistd::{self, Pid, ForkResult};
@@ -11,10 +10,12 @@ use vmm::vmm_config::machine_config::VmConfig;
 use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 
 use crate::vmm_wrapper::VmmWrapper;
+use super::pipe_pair::PipePair;
 
 pub struct VmAppConfig {
     pub instance_id: String,
     pub vsock_cid: u32,
+    pub notifier: File, // write end of a pipe
     pub kernel: String,
     pub rootfs: PathBuf,
     pub appfs: Option<PathBuf>,
@@ -30,9 +31,7 @@ pub struct VmApp {
     pub config: VmAppConfig,
     cgroup_name: PathBuf,
     pub process: Pid,
-    pub requests_input: File,
-    pub response_reader: BufReader<File>,
-    pub ready_checker: File,
+    pub connection: PipePair,
 }
 
 impl VmApp {
@@ -58,7 +57,6 @@ impl Drop for VmApp {
 impl VmAppConfig {
     pub fn run(self) -> VmApp {
         let (request_reader, request_writer) = nix::unistd::pipe().unwrap();
-        let (checker, notifier) = nix::unistd::pipe().unwrap();
         let (response_reader, response_writer) = nix::unistd::pipe().unwrap();
         match unistd::fork() {
             Err(_) => panic!("Couldn't fork!!"),
@@ -80,9 +78,10 @@ impl VmAppConfig {
                     config: self,
                     cgroup_name: cgroup_name.clone(),
                     process: child,
-                    requests_input: unsafe { File::from_raw_fd(request_writer) },
-                    response_reader: BufReader::new(unsafe { File::from_raw_fd(response_reader) }),
-                    ready_checker: unsafe { File::from_raw_fd(checker) },
+                    connection: PipePair {
+                        requests_input: unsafe { File::from_raw_fd(request_writer) },
+                        response_reader: unsafe { File::from_raw_fd(response_reader) },
+                    },
                 }
             },
             Ok(ForkResult::Child) => {
@@ -97,7 +96,8 @@ impl VmAppConfig {
                 let mut vmm = VmmWrapper::new(shared_info, self.seccomp_level,
                                               unsafe { File::from_raw_fd(response_writer) },
                                               unsafe { File::from_raw_fd(request_reader) },
-                                              unsafe { File::from_raw_fd(notifier) });
+                                              self.notifier,
+                                              self.vsock_cid);
 
                 let machine_config = VmConfig{
                     vcpu_count: Some(self.cpu_share as u8),

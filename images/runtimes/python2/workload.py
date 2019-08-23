@@ -3,6 +3,7 @@
 import sys
 import os
 import imp
+import struct
 import json
 from subprocess import call, Popen
 import multiprocessing as mp
@@ -27,6 +28,6 @@ with open('/dev/ttyS1', 'r') as tty:
 
         responseJson = json.dumps(response)
 
-        sys.stdout.write(responseJson)
-        sys.stdout.write('\n')
+        sys.stdout.write(struct.pack("@B", len(responseJson)))
+        sys.stdout.write(bytes(responseJson))
         sys.stdout.flush()

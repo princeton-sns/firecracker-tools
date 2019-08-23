@@ -5,6 +5,8 @@ extern crate firerunner;
 
 use std::io::{BufRead, Read, Write};
 use std::path::PathBuf;
+use std::fs::File;
+use std::os::unix::io::FromRawFd;
 
 use clap::{App, Arg};
 
@@ -131,6 +133,8 @@ fn main() {
         .parse::<u32>()
         .unwrap();
 
+    let (checker, notifier) = nix::unistd::pipe().expect("Could not create a pipe");
+
     let mut app = VmAppConfig {
         kernel,
         instance_id,
@@ -139,6 +143,7 @@ fn main() {
         cmd_line,
         seccomp_level,
         vsock_cid: 42,
+        notifier: unsafe{ File::from_raw_fd(notifier) },
         cpu_share: vcpu_count.unwrap_or(1),
         mem_size_mib,
         load_dir,
@@ -146,17 +151,20 @@ fn main() {
     }.run();
 
     // We need to wait for the ready signal from Firecracker
-    let data = &mut[0u8; 1usize];
-    app.ready_checker.read_exact(data).expect("Failed to receive ready signal");
+    let data = &mut[0u8; 4usize];
+    unsafe{ File::from_raw_fd(checker) }.read_exact(data).expect("Failed to receive ready signal");
+    println!("VM with notifier id {} is ready", u32::from_le_bytes(*data));
 
     let stdin = std::io::stdin();
 
     for mut line in stdin.lock().lines().map(|l| l.unwrap()) {
         line.push('\n');
-        app.requests_input.write_all(line.as_bytes()).expect("Failed to write to request pipe");
-        let mut response = String::new();
-        app.response_reader.read_line(&mut response).expect("Failed to read from response pipe");
-        println!("{}", response);
+        app.connection.write_all(line.as_bytes()).expect("Failed to write to request pipe");
+        let mut lens = [0];
+        app.connection.read_exact(&mut lens).expect("Failed to read response size");
+        let mut response = vec![0; lens[0] as usize];
+        app.connection.read_exact(response.as_mut_slice()).expect("Failed to read response");
+        println!("{}", String::from_utf8(response).unwrap());
     }
     app.kill();
 }
