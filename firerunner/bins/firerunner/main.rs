@@ -5,11 +5,12 @@ extern crate firerunner;
 
 use std::io::{BufRead, Read, Write};
 use std::path::PathBuf;
+use std::fs::File;
+use std::os::unix::io::FromRawFd;
 
 use clap::{App, Arg};
 
 use firerunner::runner::VmAppConfig;
-use firerunner::vsock::{self, VsockListener};
 
 fn main() {
     let cmd_arguments = App::new("firecracker")
@@ -32,7 +33,7 @@ fn main() {
                 .value_name("CMD_LINE")
                 .takes_value(true)
                 .required(false)
-                .default_value("quiet console=none reboot=k panic=1 pci=off")
+                .default_value("quiet console=ttyS0 reboot=k panic=1 pci=off")
                 .help("Command line to pass to the kernel")
         )
         .arg(
@@ -132,6 +133,8 @@ fn main() {
         .parse::<u32>()
         .unwrap();
 
+    let (checker, notifier) = nix::unistd::pipe().expect("Could not create a pipe");
+
     let mut app = VmAppConfig {
         kernel,
         instance_id,
@@ -140,39 +143,28 @@ fn main() {
         cmd_line,
         seccomp_level,
         vsock_cid: 42,
+        notifier: unsafe{ File::from_raw_fd(notifier) },
         cpu_share: vcpu_count.unwrap_or(1),
         mem_size_mib,
         load_dir,
         dump_dir,
     }.run();
 
-    let mut listener = VsockListener::bind(vsock::VMADDR_CID_ANY, 1234).expect("vsock listen");
-    if let Ok((mut connection, addr)) = listener.accept() {
-        println!("Connection from {:?}", addr);
-        fn handle_connection<C: Read + Write>(connection: &mut C, request: Vec<u8>) -> std::io::Result<Vec<u8>> {
-            connection.write_all(&[request.len() as u8])?;
-            connection.write_all(request.as_slice())?;
-            let mut lens = [0];
-            connection.read_exact(&mut lens)?;
-            if lens[0] == 0 {
-                return Ok(vec![]);
-            }
-            let mut response = Vec::with_capacity(lens[0] as usize);
-            response.resize(lens[0] as usize, 0);
-            connection.read_exact(response.as_mut_slice())?;
-            Ok(response)
-        }
+    // We need to wait for the ready signal from Firecracker
+    let data = &mut[0u8; 4usize];
+    unsafe{ File::from_raw_fd(checker) }.read_exact(data).expect("Failed to receive ready signal");
+    println!("VM with notifier id {} is ready", u32::from_le_bytes(*data));
 
-        let stdin = std::io::stdin();
+    let stdin = std::io::stdin();
 
-        for line in stdin.lock().lines().map(|l| l.unwrap()) {
-            if let Ok(response) = handle_connection(&mut connection, line.into_bytes()) {
-                println!("{}", String::from_utf8(response).unwrap());
-            } else {
-                break;
-            }
-        }
-        app.kill();
+    for mut line in stdin.lock().lines().map(|l| l.unwrap()) {
+        line.push('\n');
+        app.connection.write_all(line.as_bytes()).expect("Failed to write to request pipe");
+        let mut lens = [0];
+        app.connection.read_exact(&mut lens).expect("Failed to read response size");
+        let mut response = vec![0; lens[0] as usize];
+        app.connection.read_exact(response.as_mut_slice()).expect("Failed to read response");
+        println!("{}", String::from_utf8(response).unwrap());
     }
+    app.kill();
 }
-
