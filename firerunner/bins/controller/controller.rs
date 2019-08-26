@@ -101,6 +101,15 @@ impl Controller {
         Handle (vec![manager_handle, response_handle])
     }
 
+    pub fn check_running(&self) -> bool {
+        for (func_name, run_list) in self.inner.running_functions.lock().unwrap().iter() {
+            if run_list.len() > 0 {
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub fn kill_all(&mut self) {
         while self.inner.active_functions.lock().unwrap().len() > 0 {
             thread::yield_now();
@@ -115,59 +124,6 @@ impl Controller {
 }
 
 impl Inner {
-
-    pub fn schedule(&self, req: request::Request) {
-
-        match self.active_functions.lock().unwrap().entry(req.function.clone()) {
-
-            Entry::Occupied(mut entry) => {
-                let (sender, outstanding, _app) = entry.get_mut();
-                *outstanding += 1;
-                sender.send(req).expect("sending request");
-            },
-
-            Entry::Vacant(entry) => {
-                if let Some((sender, app)) = self.warm_functions.lock().unwrap().remove(entry.key()) {
-                    sender.send(req).expect("sending request");
-                    entry.insert((sender, 1, app));
-
-                } else if let Some(config) = self.function_configs.get(entry.key()) {
-
-                    let cid = self.max_channel.fetch_add(1, Ordering::Relaxed) as u32;
-                    let (req_sender, req_receiver) = channel();
-                    self.channels.lock().expect("poisoned lock").insert(cid, (entry.key().clone(), req_receiver));
-                    let app = VmAppConfig {
-                        kernel: self.kernel.clone(),
-                        instance_id: config.name.clone(),
-                        rootfs: config.runtimefs,
-                        appfs: Some(config.appfs),
-                        cmd_line: self.cmd_line.clone(),
-                        seccomp_level: self.seccomp_level,
-                        vsock_cid: cid,
-                        // we really want this to be a function of VPU and memory count, so that
-                        // cpu_share is proportional to the size of the function
-                        cpu_share: config.vcpus,
-                        mem_size_mib: Some(config.memory),
-                        load_dir: None, // ignored by now
-                        dump_dir: None, // ignored by now
-                    };
-                    println!("{:?}", app);
-                    let app = app.run();
-                    println!("{:?}", app);
-
-                    req_sender.send(req).expect("sending request");
-                    entry.insert((req_sender, 1, app));
-
-                } else {
-
-                    panic!("Bad function name {}", entry.key());
-
-                }
-
-            },
-        }
-    }
-
 
     fn aws_schedule(&self, req: request::Request) {
         // Check if I have an idle VM
@@ -197,7 +153,7 @@ impl Inner {
                 if curr_concur >= self.function_configs.get(&req.function)
                                       .unwrap().concurrency_limit {
                     // drop the request
-//                    println!("Dropping request for {}", &req.function);
+                    println!("Dropping request for {}", &req.function);
                     self.stat.lock().unwrap().drop_req(1);
                     return;
                 }
@@ -209,9 +165,13 @@ impl Inner {
                 let mut cluster = self.cluster.lock().unwrap();
                 match cluster.find_free_machine(req_cpu, req_mem) {
                     Some((id,_)) => {
+//                        let (free_cpu, free_mem) = cluster.free_resources();
+//                        println!("Found machine {} with free resources, cpu: {}, mem: {}",
+//                                 id, free_cpu, free_mem);
 
                         cluster.allocate(id, req_cpu, req_mem);
                         let new_vm = self.launch_new_vm(&req);
+//                        println!("New VM: {:?}", new_vm);
                         let function_name = req.function.clone();
 
                         match new_vm.req_sender.send(req) {

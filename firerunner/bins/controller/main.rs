@@ -117,6 +117,10 @@ fn main() {
         }
     }
 
+    while controller.check_running() {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+
     controller.kill_all();
 }
 

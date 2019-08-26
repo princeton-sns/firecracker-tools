@@ -91,6 +91,10 @@ impl Cluster{
         self.host_list.get_mut(id as usize).unwrap().allocate(req_cpu, req_mem);
     }
 
+    pub fn free_resources(&self) -> (u64, usize) {
+        (self.total_free_cpu, self.total_free_mem)
+    }
+
 }
 
 impl MachineInfo {

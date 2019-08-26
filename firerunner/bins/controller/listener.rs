@@ -25,7 +25,10 @@ impl RequestManager {
     }
 
     pub fn serve(&mut self) {
+        println!("RequestManager Started");
+
         while let Ok((connection, addr)) = self.listener.accept() {
+            println!("connection from cid: {}, addr: {:?}", &addr.cid, addr);
             if let Some((function, request_receiver)) = self.channels.lock().expect("poisoned lock").remove(&addr.cid) {
                 let response_sender = self.response_sender.clone();
                 let cid = addr.cid;
