@@ -1,10 +1,12 @@
 apk add openrc util-linux
 
 cp /common/nc-vsock /usr/bin/nc-vsock
+cp /common/outl /usr/bin/outl
 
 ## Create start script for that mounts the appfs and invokes whatever binary is in /srv/workload
 printf '#!/bin/sh\n
-exec /bin/runtime-workload\n' > /bin/workload
+stty -F /dev/ttyS1 -echo >/dev/null\n
+exec /bin/runtime-workload >/dev/ttyS1\n' > /bin/workload
 chmod +x /bin/workload
 
 ## Have the start script invoked by openrc/init

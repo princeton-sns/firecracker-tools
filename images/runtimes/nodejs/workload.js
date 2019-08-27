@@ -1,28 +1,35 @@
-const { execSync, spawn } = require("child_process");
+const { execSync, exec } = require("child_process");
+const process = require("process");
+const readline = require("readline");
+const fs = require("fs");
+
+// for snapshot
+// this approach relies on that we are currently being executed on cpu 0
+// and that other cpus writes to the port before us
+// since as of now snapshots are created offline, we are fine
+const cpu_count = require("os").cpus().length;
+for (var i = 0; i < cpu_count; i++) {
+    exec(`taskset -c ${i} outl 124 0x3f0`);
+}
+execSync("taskset -c 0 outl 124 0x3f0");
 
 execSync("mount -r /dev/vdb /srv");
 
 module.paths.push("/srv/node_modules");
 const app = require("/srv/workload");
 
-let child = spawn("/usr/bin/nc-vsock", ["0", "1234"]);
+rl = readline.createInterface({
+    input: fs.createReadStream('/dev/ttyS1'),
+    crlfDelay: Infinity
+});
+// signal Firerunner that we are ready to receive requests
+execSync("outl 126 0x3f0");
 
-child.stdout.on("readable", () => {
-  let nbytes;
-  while (!nbytes) { nbytes = child.stdout.read(1); }
-  if (!nbytes) {
-    process.exit(0);
-  }
-  let body;
-  while (!body) { body = child.stdout.read(nbytes[0]); }
-  if (!body) {
-    console.log("empty body", nbytes);
-    process.exit(0);
-  }
-  let req = JSON.parse(body);
+rl.on('line', (line) => {
+  let req = JSON.parse(line);
   app.handle(req, function(resp) {
     let respJS = JSON.stringify(resp);
-    child.stdin.write(Buffer.from([respJS.length]));
-    child.stdin.write(respJS, "utf8");
+    process.stdout.write(Buffer.from([respJS.length]));
+    process.stdout.write(respJS, "utf8");
   });
 });

@@ -5,21 +5,29 @@ import os
 import imp
 import struct
 import json
+from subprocess import call, Popen
+import multiprocessing as mp
 
-os.system("mount -r /dev/vdb /srv");
+# for snapshot
+for i in range(1, mp.cpu_count()):
+    Popen('taskset -c %d outl 124 0x3f0'%(i), shell=True)
+call('taskset -c 0 outl 124 0x3f0', shell=True)
+
+os.system("mount -r /dev/vdb /srv")
 
 sys.path.append('/srv/package')
 app = imp.load_source('app', '/srv/workload')
 
-while True:
-    jsonlen = struct.unpack("@B", sys.stdin.read(1))[0]
-    request = json.loads(sys.stdin.read(jsonlen))
+with open('/dev/ttyS1', 'r') as tty:
+    # signal firerunner we are ready
+    call('outl 126 0x3f0', shell=True)
+    while True:
+        request = json.loads(tty.readline())
 
-    response = app.handle(request)
+        response = app.handle(request)
 
-    responseJson = json.dumps(response)
+        responseJson = json.dumps(response)
 
-    sys.stderr.write(struct.pack("@B", len(responseJson)))
-    sys.stderr.write(bytes(responseJson))
-    sys.stderr.flush()
-
+        sys.stdout.write(struct.pack("@B", len(responseJson)))
+        sys.stdout.write(bytes(responseJson))
+        sys.stdout.flush()

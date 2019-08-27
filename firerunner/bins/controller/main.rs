@@ -39,7 +39,7 @@ fn main() {
                 .value_name("CMD_LINE")
                 .takes_value(true)
                 .required(false)
-                .default_value("quiet console=none reboot=k panic=1 pci=off")
+                .default_value("quiet console=ttyS0 reboot=k panic=1 pci=off")
                 .help("Command line to pass to the kernel")
         )
         .arg(
@@ -120,9 +120,13 @@ fn main() {
         }
     }
 
+    println!("All requests exhausted");
+
     while controller.check_running() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
+
+    println!("All functions finished");
 
     controller.kill_all();
 }

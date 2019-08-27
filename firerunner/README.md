@@ -24,21 +24,11 @@ Sometimes after restart `/dev/kvm` becomes inaccessible. Grant your user access 
 $ sudo setfacl -m u:${USER}:rw /dev/kvm
 ```
 
-### Vsock
+### ttyS1
 
-Currently, Firerunner uses vsock for passing input from host to guest VM and returning output from guest VM to host. Therefore the host needs the `vhost_vsock` kernel module loaded.
+Firerunner uses ttyS1, i.e. port 0x2f8, for passing input from host to guest VM and returning output from guest VM to host. Therefore, the kernel binary must be built with `CONFIG_SERIAL_8250_NR_UARTS=4` and `CONFIG_SERIAL_8250_RUNTIME_UARTS=2`. `NR_UARTS` indicates the maximum number of UARTs that is allowed. `RUNTIME_UARTS` tells the kernel how many UARTs to configure during boot up.
 
-Check if vsock kernel module is already loaded with:
-
-`$ lsmod |grep vosck`
-
-If not, load it with `$ sudo modprobe vhost_vsock`
-
-In some cases this might result in conflicts with other vsock modules. It is safe to unload them for our purposes, but obviously make sure they are not used by other important software in the system.
-
-Also add your user to vsock's ACL:
-
-`$ sudo setfacl -m u:${USER}:rw /dev/vhost-vsock`
+Under folder `firecracker/resources`, there is a recommended configuration file `microvm-kernel-config` that you can use.
 
 ### Cgroups
 

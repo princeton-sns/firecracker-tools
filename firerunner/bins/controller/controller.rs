@@ -4,6 +4,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
+use std::fs::File;
+use std::os::unix::io::FromRawFd;
 
 use super::config;
 use super::listener;
@@ -12,7 +14,7 @@ use super::cluster;
 use super::metrics::Metrics;
 
 use firerunner::runner::{VmApp, VmAppConfig};
-use firerunner::vsock::VsockCloser;
+use firerunner::pipe_pair::PipePair;
 use std::borrow::BorrowMut;
 use std::ops::Deref;
 
@@ -25,7 +27,6 @@ pub struct Vm {
     pub app: VmApp,
 }
 
-
 pub struct Inner {
     cluster: Mutex<cluster::Cluster>,
     running_functions: Mutex<BTreeMap<String, Vec<Vm>>>,
@@ -33,7 +34,7 @@ pub struct Inner {
 
     active_functions: Mutex<BTreeMap<String, (Sender<request::Request>, usize, VmApp)>>,
     warm_functions: Mutex<BTreeMap<String, (Sender<request::Request>, VmApp)>>,
-    channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>)>>>,
+    channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
     max_channel: AtomicUsize,
 
     function_configs: config::Configuration,
@@ -41,17 +42,19 @@ pub struct Inner {
     cmd_line: String,
     kernel: String,
     stat: Mutex<Metrics>,
+    notifier: File,
 }
 
 pub struct Controller {
     inner: Arc<Inner>,
-    vsock_closer: Option<VsockCloser>,
+    listener: File,  // this is cloned and used by RequestManger
 }
 
 impl Controller {
     pub fn new(function_configs: config::Configuration, seccomp_level: u32,
                cmd_line: String, kernel: String) -> Controller {
 
+        let (listener, notifier) = nix::unistd::pipe().expect("Failed to create a pipe");
         // initialize running and idle lists upfront
         let running_functions = Mutex::new(BTreeMap::new());
         let idle_functions = Mutex::new(BTreeMap::new());
@@ -76,8 +79,9 @@ impl Controller {
                 kernel,
                 function_configs,
                 stat: Mutex::new(Metrics::new()),
+                notifier: unsafe{ File::from_raw_fd(notifier) },
             }),
-            vsock_closer: None,
+            listener: unsafe{ File::from_raw_fd(listener) },
         }
     }
 
@@ -88,9 +92,11 @@ impl Controller {
     pub fn ignite(&mut self) -> Handle {
         let (response_sender, response_receiver) = channel();
 
-        let (manager_handle, vsock_closer) = listener::RequestManager::new(self.inner.channels.clone(), response_sender).spawn();
-        self.vsock_closer = Some(vsock_closer);
+        // Create RequestManager thread
+        let listener = self.listener.try_clone().expect("Failed to clone pipe listener");
+        let manager_handle = listener::RequestManager::new(self.inner.channels.clone(), response_sender, listener).spawn();
 
+        // Create ResponseHandler thread
         let inner = self.inner.clone();
         let response_handle = thread::spawn(move || {
             for response in response_receiver.iter() {
@@ -114,7 +120,7 @@ impl Controller {
         while self.inner.active_functions.lock().unwrap().len() > 0 {
             thread::yield_now();
         }
-        self.vsock_closer.take().map(|mut c| c.close()).unwrap().unwrap();
+        //self.vsock_closer.take().map(|mut c| c.close()).unwrap().unwrap();
         self.inner.warm_functions.lock().unwrap().clear();
     }
 
@@ -165,7 +171,7 @@ impl Inner {
                 let mut cluster = self.cluster.lock().unwrap();
                 match cluster.find_free_machine(req_cpu, req_mem) {
                     Some((id,_)) => {
-//                        let (free_cpu, free_mem) = cluster.free_resources();
+                        let (free_cpu, free_mem) = cluster.free_resources();
 //                        println!("Found machine {} with free resources, cpu: {}, mem: {}",
 //                                 id, free_cpu, free_mem);
 
@@ -297,7 +303,7 @@ impl Inner {
 
         let cid = self.max_channel.fetch_add(1, Ordering::Relaxed) as u32;
         let (req_sender, req_receiver) = channel();
-        self.channels.lock().expect("poisoned lock").insert(cid, (req.function.clone(), req_receiver));
+//        self.channels.lock().expect("poisoned lock").insert(cid, (req.function.clone(), req_receiver));
         let app = VmAppConfig {
             kernel: self.kernel.clone(),
             instance_id: config.name.clone(),
@@ -306,6 +312,7 @@ impl Inner {
             cmd_line: self.cmd_line.clone(),
             seccomp_level: self.seccomp_level,
             vsock_cid: cid,
+            notifier: self.notifier.try_clone().expect("Failed to clone notifier"),
             // we really want this to be a function of VPU and memory count, so that
             // cpu_share is proportional to the size of the function
             cpu_share: config.vcpus,
@@ -313,6 +320,14 @@ impl Inner {
             load_dir: None, // ignored by now
             dump_dir: None, // ignored by now
         }.run();
+
+        self.channels.lock()
+            .expect("poisoned lock")
+            .insert(cid,
+                    (req.function.clone(),
+                     req_receiver,
+                     app.connection.try_clone().expect("Failed to clone VmApp's pipe pair"))
+            );
 
         Vm{
             cid,
@@ -331,6 +346,7 @@ impl Inner {
         let mut idle_tree = self.idle_functions.lock().unwrap();
         let mut idle_list = idle_tree.get_mut(&function).unwrap();
 
+        // find finished VM from the running list and move it to the idle list
         for (idx, vm) in running_list.iter().enumerate() {
             if vm.cid == cid {
                 let vm = running_list.remove(idx);
