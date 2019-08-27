@@ -34,7 +34,9 @@ pub struct VmApp {
 
 impl VmApp {
     pub fn kill(&mut self) {
+//        println!("issuing kill signal to process: {}", &self.process);
         nix::sys::signal::kill(self.process, nix::sys::signal::Signal::SIGKILL).expect("Failed to kill child");
+//        println!("waiting for process: {}", &self.process);
         self.wait();
     }
 

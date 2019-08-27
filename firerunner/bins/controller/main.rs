@@ -111,6 +111,9 @@ fn main() {
                     println!("function {} doesn't exist", &req.function);
                     continue;
                 }
+
+                std::thread::sleep(std::time::Duration::from_millis(20));
+
                 controller.schedule(req);
             },
             Err(e) => panic!("Invalid request: {:?}", e)

@@ -20,9 +20,9 @@ use std::ops::Deref;
 // differs from runner::VmApp or VmAppConfig that represent an Vm from execution perspective
 #[derive(Debug)]
 pub struct Vm {
-    cid: u32,
-    req_sender: Sender<request::Request>,
-    app: VmApp,
+    pub cid: u32,
+    pub req_sender: Sender<request::Request>,
+    pub app: VmApp,
 }
 
 
@@ -190,6 +190,38 @@ impl Inner {
                     // Evict an idle VM running some other functions
                     None => {
                         //TODO
+//                        println!("No free resources, picking a VM to evict");
+                        if let Some((evict_vm, evict_cpu, evict_mem)) = self.get_evictable_vm(&req) {
+
+//                            println!("evict candidate {:?}, cpu: {}, mem: {}",
+//                                     &evict_vm, &evict_cpu, &evict_mem);
+                            let new_vm = self.evict_and_swap(&req, evict_vm);
+
+                            cluster.free(0, evict_cpu, evict_mem);
+                            let req_cpu: u64 = self.function_configs.get(&req.function).unwrap().vcpus;
+                            let req_mem: usize = self.function_configs.get(&req.function).unwrap().memory;
+//                            println!("allocating {} cpu, {} mem for new vm", &req_cpu, &req_mem);
+                            cluster.allocate(0, req_cpu, req_mem);
+
+//                            println!("new vm {:?}", &new_vm);
+
+                            let function_name = req.function.clone();
+
+                            match new_vm.req_sender.send(req) {
+                                Ok(_) => {
+                                    self.running_functions.lock().unwrap().get_mut(&function_name)
+                                        .unwrap().push(new_vm);
+                                },
+                                Err(e) => {
+                                    println!("Request failed to send to vm: {:?}", new_vm);
+                                    self.idle_functions.lock().unwrap().get_mut(&function_name)
+                                        .unwrap().push(new_vm);
+                                }
+                            }
+                        } else {
+                            println!("Dropping request for {}", &req.function);
+                            self.stat.lock().unwrap().drop_req(1);
+                        }
                         return;
                     }
                 }
@@ -218,6 +250,46 @@ impl Inner {
             },
             None => None
         }
+    }
+
+    pub fn get_evictable_vm(&self, req: &request::Request) -> Option<(Vm, u64, usize)> {
+        let req_cpu: u64 = self.function_configs.get(&req.function).unwrap().vcpus;
+        let req_mem: usize = self.function_configs.get(&req.function).unwrap().memory;
+
+        for (func_name, idle_list) in self.idle_functions.lock().unwrap().iter_mut() {
+            if func_name != &req.function {
+                let evict_cpu: u64 = self.function_configs.get(&func_name).unwrap().vcpus;
+                let evict_mem: usize = self.function_configs.get(&func_name).unwrap().memory;
+
+                if evict_cpu >= req_cpu && evict_mem >= req_mem && idle_list.len() > 0 {
+                    println!("Found evictable VM of function {}", func_name);
+                    return Some((idle_list.pop().unwrap(), evict_cpu, evict_mem));
+                }
+            }
+        }
+        println!("Couldn't find evictable vm that meets resources requirements");
+        None
+
+    }
+
+    // kill the vm process
+    // free vm's resources in the cluster
+    // free the Vm struct
+    pub fn evict(&self, evict_vm: Vm) {
+//        println!("trying to evict");
+//        let mem = evict_vm.app.config.mem_size_mib.unwrap();
+//        let cpu = evict_vm.app.config.cpu_share;
+//        println!("{:?}", self.cluster.lock().unwrap());
+//        println!("freeing cpu: {}, mem: {}", cpu, mem);
+//        self.cluster.lock().unwrap().free(cpu, mem);
+//        println!("{:?}", self.cluster.lock().unwrap());
+//        evict_vm.app.kill(); // vm is automatically killed with its VmApp instance is dropped
+//        println!("vm killed");
+    }
+
+    pub fn evict_and_swap(&self, req: &request::Request, mut evict_vm: Vm) -> Vm {
+        self.evict(evict_vm);
+        self.launch_new_vm(req)
     }
 
     pub fn launch_new_vm(&self, req: &request::Request) -> Vm {

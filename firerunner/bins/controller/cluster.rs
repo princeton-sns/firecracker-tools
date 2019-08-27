@@ -95,11 +95,22 @@ impl Cluster{
         (self.total_free_cpu, self.total_free_mem)
     }
 
+    pub fn free(&mut self, id: u32, cpu: u64, mem: usize) {
+        self.total_free_cpu = self.total_free_cpu + cpu;
+        self.total_free_mem = self.total_free_mem + mem;
+        self.host_list.get_mut(id as usize).unwrap().free(cpu, mem);
+    }
+
 }
 
 impl MachineInfo {
     pub fn allocate(&mut self, req_cpu: u64, req_mem: usize) {
         self.free_mem = self.free_mem - req_mem;
         self.free_cpu = self.free_cpu - req_cpu;
+    }
+
+    pub fn free(&mut self, req_cpu: u64, req_mem: usize) {
+        self.free_mem = self.free_mem + req_mem;
+        self.free_cpu = self.free_cpu + req_cpu;
     }
 }
