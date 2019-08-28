@@ -8,7 +8,7 @@ for d in bin etc lib root sbin usr home srv; do tar c "$d" | tar x -C /my-rootfs
 for dir in tmp dev proc run sys var; do mkdir /my-rootfs/${dir}; done
 
 ## Replace /sbin/init with our customized one
-rm /my-rootfs/sbin/init
-cp /common/init /my-rootfs/sbin
+#rm /my-rootfs/sbin/init
+#cp /common/init /my-rootfs/sbin
 
 exit

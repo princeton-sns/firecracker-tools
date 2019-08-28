@@ -102,7 +102,7 @@ impl VmAppConfig {
 //                    }
 //                }
                 unistd::close(0);
-//                unistd::close(1);
+                unistd::close(1);
 
                 let shared_info = Arc::new(RwLock::new(InstanceInfo {
                     state: InstanceState::Uninitialized,
