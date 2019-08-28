@@ -34,11 +34,11 @@ impl RequestManager {
 
         let mut id_buf = [0u8; 4]; // u32
         loop {
-            println!("waiting for connection");
+//            println!("waiting for connection");
             self.listener.read_exact(&mut id_buf).expect("Failed to read from listener pipe");
             let id = u32::from_le_bytes(id_buf);
 
-            println!("Connection from VM {}", &id);
+//            println!("Connection from VM {}", &id);
 
             if let Some((function, request_receiver, connection)) =
                     self.channels.lock().expect("poisoned lock").remove(&id) {

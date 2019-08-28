@@ -1,4 +1,4 @@
-use std::collections::btree_map::{BTreeMap, Entry};
+use std::collections::btree_map::BTreeMap;
 use std::default::Default;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -15,27 +15,25 @@ use super::metrics::Metrics;
 
 use firerunner::runner::{VmApp, VmAppConfig};
 use firerunner::pipe_pair::PipePair;
-use std::borrow::BorrowMut;
-use std::ops::Deref;
 
 // represent an VM from a management perspective
 // differs from runner::VmApp or VmAppConfig that represent an Vm from execution perspective
 #[derive(Debug)]
 pub struct Vm {
-    pub cid: u32,
+    pub id: u32,
     pub req_sender: Sender<request::Request>,
     pub app: VmApp,
 }
 
 pub struct Inner {
-    cluster: Mutex<cluster::Cluster>,
+    cluster: Mutex<cluster::Cluster>,       // track physical resources
     running_functions: Mutex<BTreeMap<String, Vec<Vm>>>,
     idle_functions: Mutex<BTreeMap<String, Vec<Vm>>>,
 
     channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
-    max_channel: AtomicUsize,
+    vm_id_counter: AtomicUsize,     // monotonically increase for each vm created
 
-    function_configs: config::Configuration,
+    function_configs: config::Configuration,    // in-memory function config store
     seccomp_level: u32,
     cmd_line: String,
     kernel: String,
@@ -53,14 +51,18 @@ impl Controller {
                cmd_line: String, kernel: String) -> Controller {
 
         let (listener, notifier) = nix::unistd::pipe().expect("Failed to create a pipe");
+
         // initialize running and idle lists upfront
-        let running_functions = Mutex::new(BTreeMap::new());
-        let idle_functions = Mutex::new(BTreeMap::new());
+        let mut running_functions = BTreeMap::new();
+        let mut idle_functions = BTreeMap::new();
 
         for f in function_configs.configs.keys() {
-            running_functions.lock().unwrap().insert(f.clone(), Vec::new());
-            idle_functions.lock().unwrap().insert(f.clone(), Vec::new());
+            running_functions.insert(f.clone(), Vec::new());
+            idle_functions.insert(f.clone(), Vec::new());
         }
+
+        let running_functions = Mutex::new(running_functions);
+        let idle_functions = Mutex::new(idle_functions);
 
         Controller {
             inner: Arc::new(Inner {
@@ -69,7 +71,7 @@ impl Controller {
                 idle_functions,
 
                 channels: Default::default(),
-                max_channel: AtomicUsize::new(3),
+                vm_id_counter: AtomicUsize::new(3),
                 seccomp_level,
                 cmd_line,
                 kernel,
@@ -103,8 +105,9 @@ impl Controller {
         Handle (vec![manager_handle, response_handle])
     }
 
+    // check if there's any running function
     pub fn check_running(&self) -> bool {
-        for (func_name, run_list) in self.inner.running_functions.lock().unwrap().iter() {
+        for (_, run_list) in self.inner.running_functions.lock().unwrap().iter() {
             if run_list.len() > 0 {
                 return true;
             }
@@ -112,14 +115,23 @@ impl Controller {
         return false;
     }
 
+    // kill all vms
     pub fn kill_all(&mut self) {
         for vms in self.inner.idle_functions.lock().unwrap().values_mut() {
+            vms.clear()
+        }
+
+        for vms in self.inner.running_functions.lock().unwrap().values_mut() {
             vms.clear()
         }
     }
 
     pub fn get_cluster_info(&self) -> MutexGuard<cluster::Cluster> {
         self.inner.cluster.lock().unwrap()
+    }
+
+    pub fn get_stat(&self) -> MutexGuard<Metrics> {
+        self.inner.stat.lock().unwrap()
     }
 }
 
@@ -137,7 +149,7 @@ impl Inner {
                             .unwrap().push(vm);
                     },
                     Err(e) => {
-                        println!("Request failed to send to vm: {:?}", vm);
+                        println!("Request failed to send to vm: {:?}, error: {}", vm, e);
                         self.idle_functions.lock().unwrap().get_mut(&function_name)
                             .unwrap().push(vm);
                     }
@@ -165,9 +177,6 @@ impl Inner {
                 let mut cluster = self.cluster.lock().unwrap();
                 match cluster.find_free_machine(req_cpu, req_mem) {
                     Some((id,_)) => {
-                        let (free_cpu, free_mem) = cluster.free_resources();
-//                        println!("Found machine {} with free resources, cpu: {}, mem: {}",
-//                                 id, free_cpu, free_mem);
 
                         cluster.allocate(id, req_cpu, req_mem);
                         let new_vm = self.launch_new_vm(&req);
@@ -180,7 +189,7 @@ impl Inner {
                                     .unwrap().push(new_vm);
                             },
                             Err(e) => {
-                                println!("Request failed to send to vm: {:?}", new_vm);
+                                println!("Request failed to send to vm: {:?}, error: {}", new_vm, e);
                                 self.idle_functions.lock().unwrap().get_mut(&function_name)
                                     .unwrap().push(new_vm);
                             }
@@ -198,8 +207,10 @@ impl Inner {
                             let new_vm = self.evict_and_swap(&req, evict_vm);
 
                             cluster.free(0, evict_cpu, evict_mem);
-                            let req_cpu: u64 = self.function_configs.get(&req.function).unwrap().vcpus;
-                            let req_mem: usize = self.function_configs.get(&req.function).unwrap().memory;
+                            let req_cpu: u64 = self.function_configs
+                                                   .get(&req.function).unwrap().vcpus;
+                            let req_mem: usize = self.function_configs
+                                                     .get(&req.function).unwrap().memory;
 //                            println!("allocating {} cpu, {} mem for new vm", &req_cpu, &req_mem);
                             cluster.allocate(0, req_cpu, req_mem);
 
@@ -213,7 +224,8 @@ impl Inner {
                                         .unwrap().push(new_vm);
                                 },
                                 Err(e) => {
-                                    println!("Request failed to send to vm: {:?}", new_vm);
+                                    println!("Request failed to send to vm: {:?}, error: {}",
+                                             new_vm, e);
                                     self.idle_functions.lock().unwrap().get_mut(&function_name)
                                         .unwrap().push(new_vm);
                                 }
@@ -229,9 +241,9 @@ impl Inner {
         }
     }
 
-    fn omni_schedule(&self, req: request::Request) {
-
-    }
+//    fn omni_schedule(&self, req: request::Request) {
+//
+//    }
 
     fn get_current_concurrency(&self, req: &request::Request) -> usize {
         self.running_functions.lock().unwrap().get(&req.function).unwrap().len() +
@@ -287,7 +299,7 @@ impl Inner {
 //        println!("vm killed");
     }
 
-    pub fn evict_and_swap(&self, req: &request::Request, mut evict_vm: Vm) -> Vm {
+    pub fn evict_and_swap(&self, req: &request::Request, evict_vm: Vm) -> Vm {
         self.evict(evict_vm);
         self.launch_new_vm(req)
     }
@@ -295,7 +307,7 @@ impl Inner {
     pub fn launch_new_vm(&self, req: &request::Request) -> Vm {
         let config = self.function_configs.get(&req.function).unwrap();
 
-        let cid = self.max_channel.fetch_add(1, Ordering::Relaxed) as u32;
+        let id = self.vm_id_counter.fetch_add(1, Ordering::Relaxed) as u32;
         let (req_sender, req_receiver) = channel();
         let app = VmAppConfig {
             kernel: self.kernel.clone(),
@@ -304,7 +316,7 @@ impl Inner {
             appfs: Some(config.appfs),
             cmd_line: self.cmd_line.clone(),
             seccomp_level: self.seccomp_level,
-            vsock_cid: cid,
+            vsock_cid: id,
             notifier: self.notifier.try_clone().expect("Failed to clone notifier"),
             // we really want this to be a function of VPU and memory count, so that
             // cpu_share is proportional to the size of the function
@@ -316,14 +328,14 @@ impl Inner {
 
         self.channels.lock()
             .expect("poisoned lock")
-            .insert(cid,
+            .insert(id,
                     (req.function.clone(),
                      req_receiver,
                      app.connection.try_clone().expect("Failed to clone VmApp's pipe pair"))
             );
 
         Vm {
-            cid,
+            id,
             req_sender,
             app,
         }
@@ -331,17 +343,19 @@ impl Inner {
 
 
     pub fn process_response(&self, response: (u32, String, Vec<u8>)) {
-        let (cid, function, response) = response;
-        println!("{}, {}: {}", cid, function, String::from_utf8(response).unwrap());
+        let (id, function, response) = response;
+        println!("{}, {}: {}", id, function, String::from_utf8(response).unwrap());
+
+        self.stat.lock().unwrap().complete_req(1);
 
         let mut running_tree = self.running_functions.lock().unwrap();
-        let mut running_list = running_tree.get_mut(&function).unwrap();
+        let running_list = running_tree.get_mut(&function).unwrap();
         let mut idle_tree = self.idle_functions.lock().unwrap();
-        let mut idle_list = idle_tree.get_mut(&function).unwrap();
+        let idle_list = idle_tree.get_mut(&function).unwrap();
 
         // find the finished VM from the running list and move it to the idle list
         for (idx, vm) in running_list.iter().enumerate() {
-            if vm.cid == cid {
+            if vm.id == id {
                 let vm = running_list.remove(idx);
                 idle_list.push(vm);
                 break;

@@ -126,7 +126,7 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    println!("All functions finished");
+    println!("{} functions finished", controller.get_stat().num_complete);
 
     controller.kill_all();
 }

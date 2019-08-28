@@ -1,6 +1,6 @@
 pub struct Metrics {
-    num_drop: u32,  // number of dropped requests
-    num_complete: u32,  // number of requests completed
+    pub num_drop: u32,  // number of dropped requests
+    pub num_complete: u32,  // number of requests completed
 }
 
 impl Metrics {
