@@ -32,8 +32,6 @@ pub struct Inner {
     running_functions: Mutex<BTreeMap<String, Vec<Vm>>>,
     idle_functions: Mutex<BTreeMap<String, Vec<Vm>>>,
 
-    active_functions: Mutex<BTreeMap<String, (Sender<request::Request>, usize, VmApp)>>,
-    warm_functions: Mutex<BTreeMap<String, (Sender<request::Request>, VmApp)>>,
     channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
     max_channel: AtomicUsize,
 
@@ -70,8 +68,6 @@ impl Controller {
                 running_functions,
                 idle_functions,
 
-                active_functions: Default::default(),
-                warm_functions: Default::default(),
                 channels: Default::default(),
                 max_channel: AtomicUsize::new(3),
                 seccomp_level,
@@ -117,11 +113,9 @@ impl Controller {
     }
 
     pub fn kill_all(&mut self) {
-        while self.inner.active_functions.lock().unwrap().len() > 0 {
-            thread::yield_now();
+        for vms in self.inner.idle_functions.lock().unwrap().values_mut() {
+            vms.clear()
         }
-        //self.vsock_closer.take().map(|mut c| c.close()).unwrap().unwrap();
-        self.inner.warm_functions.lock().unwrap().clear();
     }
 
     pub fn get_cluster_info(&self) -> MutexGuard<cluster::Cluster> {
@@ -303,7 +297,6 @@ impl Inner {
 
         let cid = self.max_channel.fetch_add(1, Ordering::Relaxed) as u32;
         let (req_sender, req_receiver) = channel();
-//        self.channels.lock().expect("poisoned lock").insert(cid, (req.function.clone(), req_receiver));
         let app = VmAppConfig {
             kernel: self.kernel.clone(),
             instance_id: config.name.clone(),
@@ -329,7 +322,7 @@ impl Inner {
                      app.connection.try_clone().expect("Failed to clone VmApp's pipe pair"))
             );
 
-        Vm{
+        Vm {
             cid,
             req_sender,
             app,
@@ -346,7 +339,7 @@ impl Inner {
         let mut idle_tree = self.idle_functions.lock().unwrap();
         let mut idle_list = idle_tree.get_mut(&function).unwrap();
 
-        // find finished VM from the running list and move it to the idle list
+        // find the finished VM from the running list and move it to the idle list
         for (idx, vm) in running_list.iter().enumerate() {
             if vm.cid == cid {
                 let vm = running_list.remove(idx);
@@ -356,16 +349,6 @@ impl Inner {
         }
         println!("Function {}, running: {}, idle: {}", function, running_list.len(), idle_list.len());
 
-//        let mut active = self.active_functions.lock().unwrap();
-//        let mut warm = self.warm_functions.lock().unwrap();
-//        let (sender, mut outstanding, app) = active.remove(&function).expect("active function not in active_functions?");
-//        outstanding -= 1;
-//        if outstanding > 0 {
-//            active.insert(function, (sender, outstanding, app));
-//        } else {
-//            warm.insert(function, (sender, app));
-//        }
-//        println!("Warm {}, Active: {}", warm.len(), active.len());
     }
 }
 
