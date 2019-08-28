@@ -180,7 +180,7 @@ impl Inner {
 
                         cluster.allocate(id, req_cpu, req_mem);
                         let new_vm = self.launch_new_vm(&req);
-//                        println!("New VM: {:?}", new_vm);
+                        //println!("New VM: {:?}", new_vm);
                         let function_name = req.function.clone();
 
                         match new_vm.req_sender.send(req) {
@@ -311,6 +311,7 @@ impl Inner {
         let (req_sender, req_receiver) = channel();
         let app = VmAppConfig {
             kernel: self.kernel.clone(),
+            //kernel: String::from("foo"),
             instance_id: config.name.clone(),
             rootfs: config.runtimefs,
             appfs: Some(config.appfs),
@@ -322,7 +323,7 @@ impl Inner {
             // cpu_share is proportional to the size of the function
             cpu_share: config.vcpus,
             mem_size_mib: Some(config.memory),
-            load_dir: None, // ignored by now
+            load_dir: Some(config.load_dir), // ignored by now
             dump_dir: None, // ignored by now
         }.run();
 

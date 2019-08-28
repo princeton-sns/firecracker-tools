@@ -112,7 +112,7 @@ fn main() {
                     continue;
                 }
 
-                std::thread::sleep(std::time::Duration::from_millis(20));
+                std::thread::sleep(std::time::Duration::from_millis(50));
 
                 controller.schedule(req);
             },
