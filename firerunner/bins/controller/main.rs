@@ -133,9 +133,11 @@ fn main() {
                     continue;
                 }
 
-                std::thread::sleep(std::time::Duration::from_millis(50));
+                let interval = req.interval;
 
                 controller.schedule(req);
+
+                std::thread::sleep(std::time::Duration::from_millis(interval));
             },
             Err(e) => panic!("Invalid request: {:?}", e)
         }

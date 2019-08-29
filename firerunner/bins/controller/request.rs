@@ -3,6 +3,7 @@ use serde_json::Value;
 
 #[derive(Serialize, Deserialize)]
 pub struct Request {
+    pub interval: u64,
     pub function: String,
     pub payload: Value,
 }
