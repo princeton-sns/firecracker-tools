@@ -40,6 +40,7 @@ pub struct Inner {
     stat: Mutex<Metrics>,
     notifier: File,
     debug: bool,          // whether VMs keeps stdout
+    snap: bool,
 }
 
 pub struct Controller {
@@ -49,7 +50,7 @@ pub struct Controller {
 
 impl Controller {
     pub fn new(function_configs: config::Configuration, seccomp_level: u32,
-               cmd_line: String, kernel: String, debug: bool) -> Controller {
+               cmd_line: String, kernel: String, debug: bool, snap: bool) -> Controller {
 
         let (listener, notifier) = nix::unistd::pipe().expect("Failed to create a pipe");
 
@@ -80,6 +81,7 @@ impl Controller {
                 stat: Mutex::new(Metrics::new()),
                 notifier: unsafe{ File::from_raw_fd(notifier) },
                 debug,
+                snap,
             }),
             listener: unsafe{ File::from_raw_fd(listener) },
         }
@@ -311,6 +313,12 @@ impl Inner {
 
         let id = self.vm_id_counter.fetch_add(1, Ordering::Relaxed) as u32;
         let (req_sender, req_receiver) = channel();
+
+        let mut load_dir = None;
+        if self.snap{
+            load_dir = config.load_dir;
+        }
+
         let app = VmAppConfig {
             kernel: self.kernel.clone(),
             //kernel: String::from("foo"),
@@ -325,7 +333,7 @@ impl Inner {
             // cpu_share is proportional to the size of the function
             cpu_share: config.vcpus,
             mem_size_mib: Some(config.memory),
-            load_dir: config.load_dir, // ignored by now
+            load_dir,
             dump_dir: None, // ignored by now
         }.run(self.debug);
 

@@ -79,10 +79,16 @@ fn main() {
         .arg(
             Arg::with_name("debug")
                 .long("debug")
-                .value_name("DEBUG")
                 .takes_value(false)
                 .required(false)
                 .help("Whether VMs get to write to stdout")
+        )
+        .arg(
+            Arg::with_name("snapshot")
+                .long("snap")
+                .takes_value(false)
+                .required(false)
+                .help("Boot VMs from snapshots")
         )
         .get_matches();
 
@@ -95,6 +101,7 @@ fn main() {
     let func_config = std::fs::File::open(cmd_arguments.value_of("function config file").unwrap())
         .expect("Function config file not found");
     let debug = cmd_arguments.is_present("debug");
+    let snap = cmd_arguments.is_present("snapshot");
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -111,7 +118,8 @@ fn main() {
                                                      seccomp_level,
                                                      cmd_line,
                                                      kernel,
-                                                     debug);
+                                                     debug,
+                                                     snap);
     println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();
@@ -139,7 +147,8 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    println!("{} functions finished", controller.get_stat().num_complete);
+    println!("{} requests completed", controller.get_stat().num_complete);
+    println!("{} requests dropped", controller.get_stat().num_drop);
 
     controller.kill_all();
 }
