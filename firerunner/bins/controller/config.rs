@@ -64,6 +64,6 @@ pub struct FunctionConfig {
     pub vcpus: u64,
     pub memory: usize,
     pub concurrency_limit: usize,
-    pub load_dir: PathBuf,
+    pub load_dir: Option<PathBuf>,
 }
 
