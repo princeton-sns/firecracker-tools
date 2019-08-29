@@ -76,6 +76,14 @@ fn main() {
                 .required(true)
                 .help("Directory containing all appfs images")
         )
+        .arg(
+            Arg::with_name("debug")
+                .long("debug")
+                .value_name("DEBUG")
+                .takes_value(false)
+                .required(false)
+                .help("Whether VMs get to write to stdout")
+        )
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
@@ -86,6 +94,7 @@ fn main() {
     let appfs_dir = cmd_arguments.value_of("appfs dir").unwrap();
     let func_config = std::fs::File::open(cmd_arguments.value_of("function config file").unwrap())
         .expect("Function config file not found");
+    let debug = cmd_arguments.is_present("debug");
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -98,7 +107,11 @@ fn main() {
     let app_configs = config::Configuration::new(runtimefs_dir, appfs_dir, func_config);
     println!("{} functions loaded", app_configs.num_func());
 
-    let mut controller = controller::Controller::new(app_configs.clone(), seccomp_level, cmd_line, kernel);
+    let mut controller = controller::Controller::new(app_configs.clone(),
+                                                     seccomp_level,
+                                                     cmd_line,
+                                                     kernel,
+                                                     debug);
     println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();

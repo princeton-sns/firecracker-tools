@@ -59,7 +59,7 @@ impl Drop for VmApp {
 }
 
 impl VmAppConfig {
-    pub fn run(self) -> VmApp {
+    pub fn run(self, debug: bool) -> VmApp {
         let (request_reader, request_writer) = nix::unistd::pipe().unwrap();
         let (response_reader, response_writer) = nix::unistd::pipe().unwrap();
         match unistd::fork() {
@@ -102,7 +102,10 @@ impl VmAppConfig {
 //                    }
 //                }
                 unistd::close(0);
-                unistd::close(1);
+                if !debug {
+                    unistd::close(1);
+                }
+
 
                 let shared_info = Arc::new(RwLock::new(InstanceInfo {
                     state: InstanceState::Uninitialized,

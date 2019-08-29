@@ -39,16 +39,17 @@ pub struct Inner {
     kernel: String,
     stat: Mutex<Metrics>,
     notifier: File,
+    debug: bool,          // whether VMs keeps stdout
 }
 
 pub struct Controller {
     inner: Arc<Inner>,
-    listener: File,  // this is cloned and used by RequestManger
+    listener: File,       // this is cloned and used by RequestManger
 }
 
 impl Controller {
     pub fn new(function_configs: config::Configuration, seccomp_level: u32,
-               cmd_line: String, kernel: String) -> Controller {
+               cmd_line: String, kernel: String, debug: bool) -> Controller {
 
         let (listener, notifier) = nix::unistd::pipe().expect("Failed to create a pipe");
 
@@ -78,6 +79,7 @@ impl Controller {
                 function_configs,
                 stat: Mutex::new(Metrics::new()),
                 notifier: unsafe{ File::from_raw_fd(notifier) },
+                debug,
             }),
             listener: unsafe{ File::from_raw_fd(listener) },
         }
@@ -325,7 +327,7 @@ impl Inner {
             mem_size_mib: Some(config.memory),
             load_dir: config.load_dir, // ignored by now
             dump_dir: None, // ignored by now
-        }.run();
+        }.run(self.debug);
 
         self.channels.lock()
             .expect("poisoned lock")
