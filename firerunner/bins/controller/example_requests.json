@@ -1,14 +1,15 @@
-{"function": "lorempy2", "payload":{"request": 42}}
-{"function": "loremjs", "payload":{"request": 42}}
-{"function": "lorempy2", "payload":{"request": 42}}
-{"function": "loremjs", "payload":{"request": 42}}
-{"function": "lorempy2", "payload":{"request": 42}}
-{"function": "loremjs", "payload":{"request": 42}}
-{"function": "lorempy2", "payload":{"request": 42}}
-{"function": "loremjs", "payload":{"request": 42}}
-{"function": "lorempy2", "payload":{"request": 42}}
-{"function": "loremjs", "payload":{"request": 42}}
-{"function": "lorempy2", "payload":{"request": 42}}
-{"function": "loremjs", "payload":{"request": 42}}
-{"function": "lorempy2", "payload":{"request": 42}}
-{"function": "loremjs", "payload":{"request": 42}}
+{"interval": 500, "function": "lorempy2", "payload":{"request": 42}}
+{"interval": 500, "function": "loremjs", "payload":{"request": 42}}
+{"interval": 500, "function": "lorempy2", "payload":{"request": 42}}
+{"interval": 500, "function": "loremjs", "payload":{"request": 42}}
+{"interval": 500, "function": "lorempy2", "payload":{"request": 42}}
+{"interval": 500, "function": "loremjs", "payload":{"request": 42}}
+{"interval": 1000, "function": "lorempy2", "payload":{"request": 42}}
+{"interval": 1000, "function": "loremjs", "payload":{"request": 42}}
+{"interval": 1000, "function": "lorempy2", "payload":{"request": 42}}
+{"interval": 1000, "function": "loremjs", "payload":{"request": 42}}
+{"interval": 1000, "function": "lorempy2", "payload":{"request": 42}}
+{"interval": 1000, "function": "loremjs", "payload":{"request": 42}}
+{"interval": 1000, "function": "lorempy2", "payload":{"request": 42}}
+{"interval": 1000, "function": "loremjs", "payload":{"request": 42}}
+{"interval": 1000, "function": "loremgo", "payload":{"request": 42}}

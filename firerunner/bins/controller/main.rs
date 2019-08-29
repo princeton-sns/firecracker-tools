@@ -3,6 +3,9 @@ extern crate clap;
 extern crate firerunner;
 extern crate serde;
 extern crate serde_json;
+extern crate vmm;
+extern crate nix;
+extern crate cgroups;
 
 use std::io::BufRead;
 
@@ -12,6 +15,8 @@ mod config;
 mod controller;
 mod request;
 mod listener;
+mod cluster;
+mod metrics;
 
 fn main() {
     let cmd_arguments = App::new("controller")
@@ -34,7 +39,7 @@ fn main() {
                 .value_name("CMD_LINE")
                 .takes_value(true)
                 .required(false)
-                .default_value("quiet console=ttyS0 reboot=k panic=1 pci=off")
+                .default_value("quiet console=none reboot=k panic=1 pci=off")
                 .help("Command line to pass to the kernel")
         )
         .arg(
@@ -71,6 +76,20 @@ fn main() {
                 .required(true)
                 .help("Directory containing all appfs images")
         )
+        .arg(
+            Arg::with_name("debug")
+                .long("debug")
+                .takes_value(false)
+                .required(false)
+                .help("Whether VMs get to write to stdout")
+        )
+        .arg(
+            Arg::with_name("snapshot")
+                .long("snap")
+                .takes_value(false)
+                .required(false)
+                .help("Boot VMs from snapshots")
+        )
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
@@ -81,6 +100,8 @@ fn main() {
     let appfs_dir = cmd_arguments.value_of("appfs dir").unwrap();
     let func_config = std::fs::File::open(cmd_arguments.value_of("function config file").unwrap())
         .expect("Function config file not found");
+    let debug = cmd_arguments.is_present("debug");
+    let snap = cmd_arguments.is_present("snapshot");
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -88,19 +109,48 @@ fn main() {
     let seccomp_level = 0;
 
     // init config
+    // Current implementation assumes that function config do not change after controller
+    // starts. That is, no live updates of function configs or adding functions.
     let app_configs = config::Configuration::new(runtimefs_dir, appfs_dir, func_config);
     println!("{} functions loaded", app_configs.num_func());
 
-    let mut controller = controller::Controller::new(app_configs, seccomp_level, cmd_line, kernel);
+    let mut controller = controller::Controller::new(app_configs.clone(),
+                                                     seccomp_level,
+                                                     cmd_line,
+                                                     kernel,
+                                                     debug,
+                                                     snap);
+    println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();
 
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
         match request::parse_json(line) {
-            Ok(req) => controller.schedule(req),
-            Err(e) => panic!("{:?}", e)
+            Ok(req) => {
+                // Check function existence at the gateway
+                if !app_configs.exist(&req.function){
+                    println!("function {} doesn't exist", &req.function);
+                    continue;
+                }
+
+                let interval = req.interval;
+
+                controller.schedule(req);
+
+                std::thread::sleep(std::time::Duration::from_millis(interval));
+            },
+            Err(e) => panic!("Invalid request: {:?}", e)
         }
     }
+
+    println!("All requests exhausted");
+
+    while controller.check_running() {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+
+    println!("{} requests completed", controller.get_stat().num_complete);
+    println!("{} requests dropped", controller.get_stat().num_drop);
 
     controller.kill_all();
 }

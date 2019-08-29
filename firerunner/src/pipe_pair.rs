@@ -6,6 +6,7 @@ use std::os::unix::io::{RawFd, FromRawFd};
 /// Two pipes are needed for each VmApp
 /// One pipe used to send requests into VM
 /// The other pipe used to read responses from VM
+#[derive(Debug)]
 pub struct PipePair {
     pub response_reader: File,
     pub requests_input: File,

@@ -148,7 +148,7 @@ fn main() {
         mem_size_mib,
         load_dir,
         dump_dir,
-    }.run();
+    }.run(true);
 
     // We need to wait for the ready signal from Firecracker
     let data = &mut[0u8; 4usize];

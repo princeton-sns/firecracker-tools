@@ -6,8 +6,9 @@ use std::path::{Path, PathBuf};
 use std::fs::File;
 
 // represents an in-memory function config store
+#[derive(Clone)]
 pub struct Configuration {
-    configs: BTreeMap<String, FunctionConfig>,
+    pub configs: BTreeMap<String, FunctionConfig>,
     runtimefs_dir: PathBuf,
     appfs_dir: PathBuf,
 }
@@ -40,6 +41,8 @@ impl Configuration {
                 appfs: [self.appfs_dir.clone(), c.appfs.clone()].iter().collect(), 
                 vcpus: c.vcpus,
                 memory: c.memory,
+                concurrency_limit: c.concurrency_limit,
+                load_dir: c.load_dir.clone(), 
             }
         })
     }
@@ -47,14 +50,20 @@ impl Configuration {
     pub fn num_func(&self) -> usize {
         self.configs.len()
     }
+
+    pub fn exist(&self, name: &String) -> bool {
+        self.configs.contains_key(name)
+    }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct FunctionConfig {
     pub name: String,
     pub runtimefs: PathBuf,
     pub appfs: PathBuf,
     pub vcpus: u64,
     pub memory: usize,
+    pub concurrency_limit: usize,
+    pub load_dir: Option<PathBuf>,
 }
 

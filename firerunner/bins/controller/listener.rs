@@ -13,12 +13,12 @@ pub struct RequestManager {
     listener: File, // read end of the pipe through which VM signals it is ready to receive requests.
     channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
     connections: BTreeMap<u32, JoinHandle<()>>,
-    response_sender: Sender<(String, Vec<u8>)>,
+    response_sender: Sender<(u32, String, Vec<u8>)>,
 }
 
 impl RequestManager {
     pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
-                response_sender: Sender<(String, Vec<u8>)>,
+                response_sender: Sender<(u32, String, Vec<u8>)>,
                 listener: File) -> RequestManager
     {
         RequestManager {
@@ -30,14 +30,23 @@ impl RequestManager {
     }
 
     pub fn serve(&mut self) {
+        println!("RequestManager Started");
+
         let mut id_buf = [0u8; 4]; // u32
         loop {
+//            println!("waiting for connection");
             self.listener.read_exact(&mut id_buf).expect("Failed to read from listener pipe");
             let id = u32::from_le_bytes(id_buf);
-            if let Some((function, request_receiver, connection)) = self.channels.lock().expect("poisoned lock").remove(&id) {
+
+//            println!("Connection from VM {}", &id);
+
+            if let Some((function, request_receiver, connection)) =
+                    self.channels.lock().expect("poisoned lock").remove(&id) {
+
                 let response_sender = self.response_sender.clone();
                 self.connections.insert(id, thread::spawn(move || {
                     let mut conn_mgr = ConnectionManager {
+                        id,
                         function,
                         request_receiver,
                         response_sender,
@@ -49,19 +58,16 @@ impl RequestManager {
         }
     }
 
-    //pub fn spawn(mut self) -> (JoinHandle<()>, VsockCloser) {
-    //    let closer = self.listener.closer();
-    //    (thread::spawn(move || { self.serve() }), closer)
-    //}
     pub fn spawn(mut self) -> JoinHandle<()> {
         thread::spawn(move || { self.serve() })
     }
 }
 
 struct ConnectionManager<T>{
+    id:  u32,
     function: String,
     request_receiver: Receiver<request::Request>,
-    response_sender: Sender<(String, Vec<u8>)>,
+    response_sender: Sender<(u32, String, Vec<u8>)>,
     connection: T,
 }
 
@@ -85,10 +91,12 @@ impl<T: Read + Write> ConnectionManager<T> {
     fn handle_connection(&mut self) {
         for request in self.request_receiver.iter() {
             if let Ok(response) = Self::handle_request(&mut self.connection, request) {
-                self.response_sender.send((self.function.clone(), response)).unwrap();
+                self.response_sender.send((self.id, self.function.clone(), response)).unwrap();
             } else {
+                println!("Error response from VM");
                 break;
             }
         }
+        println!("Connection Manager exit");
     }
 }

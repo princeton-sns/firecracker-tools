@@ -12,6 +12,7 @@ use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 use crate::vmm_wrapper::VmmWrapper;
 use super::pipe_pair::PipePair;
 
+#[derive(Debug)]
 pub struct VmAppConfig {
     pub instance_id: String,
     pub vsock_cid: u32,
@@ -27,6 +28,7 @@ pub struct VmAppConfig {
     pub dump_dir: Option<PathBuf>, // ignored by now
 }
 
+#[derive(Debug)]
 pub struct VmApp {
     pub config: VmAppConfig,
     cgroup_name: PathBuf,
@@ -36,7 +38,9 @@ pub struct VmApp {
 
 impl VmApp {
     pub fn kill(&mut self) {
+//        println!("issuing kill signal to process: {}", &self.process);
         nix::sys::signal::kill(self.process, nix::sys::signal::Signal::SIGKILL).expect("Failed to kill child");
+//        println!("waiting for process: {}", &self.process);
         self.wait();
     }
 
@@ -55,7 +59,7 @@ impl Drop for VmApp {
 }
 
 impl VmAppConfig {
-    pub fn run(self) -> VmApp {
+    pub fn run(self, debug: bool) -> VmApp {
         let (request_reader, request_writer) = nix::unistd::pipe().unwrap();
         let (response_reader, response_writer) = nix::unistd::pipe().unwrap();
         match unistd::fork() {
@@ -85,6 +89,24 @@ impl VmAppConfig {
                 }
             },
             Ok(ForkResult::Child) => {
+                // Close all open file descriptors in the child process
+//                for i in 0..2 {
+//                     leave stderr open so we can see panics
+//                    if i == 2 {
+//                        continue;
+//                    }
+//
+//                     stop when close fails (means the file descriptor doesn't exist
+//                    if unistd::close(i).is_err() {
+//                        break;
+//                    }
+//                }
+                unistd::close(0);
+                if !debug {
+                    unistd::close(1);
+                }
+
+
                 let shared_info = Arc::new(RwLock::new(InstanceInfo {
                     state: InstanceState::Uninitialized,
                     id: self.instance_id.clone(),
