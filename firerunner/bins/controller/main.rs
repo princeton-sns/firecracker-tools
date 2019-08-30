@@ -85,7 +85,7 @@ fn main() {
         )
         .arg(
             Arg::with_name("snapshot")
-                .long("snap")
+                .long("snapshot")
                 .takes_value(false)
                 .required(false)
                 .help("Boot VMs from snapshots")
@@ -101,7 +101,7 @@ fn main() {
     let func_config = std::fs::File::open(cmd_arguments.value_of("function config file").unwrap())
         .expect("Function config file not found");
     let debug = cmd_arguments.is_present("debug");
-    let snap = cmd_arguments.is_present("snapshot");
+    let snapshot = cmd_arguments.is_present("snapshot");
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -119,7 +119,7 @@ fn main() {
                                                      cmd_line,
                                                      kernel,
                                                      debug,
-                                                     snap);
+                                                     snapshot);
     println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();
@@ -134,10 +134,10 @@ fn main() {
                 }
 
                 let interval = req.interval;
+                std::thread::sleep(std::time::Duration::from_millis(interval));
 
                 controller.schedule(req);
 
-                std::thread::sleep(std::time::Duration::from_millis(interval));
             },
             Err(e) => panic!("Invalid request: {:?}", e)
         }

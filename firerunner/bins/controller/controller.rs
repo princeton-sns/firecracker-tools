@@ -40,7 +40,7 @@ pub struct Inner {
     stat: Mutex<Metrics>,
     notifier: File,
     debug: bool,          // whether VMs keeps stdout
-    snap: bool,
+    snapshot: bool,
 }
 
 pub struct Controller {
@@ -50,7 +50,7 @@ pub struct Controller {
 
 impl Controller {
     pub fn new(function_configs: config::Configuration, seccomp_level: u32,
-               cmd_line: String, kernel: String, debug: bool, snap: bool) -> Controller {
+               cmd_line: String, kernel: String, debug: bool, snapshot: bool) -> Controller {
 
         let (listener, notifier) = nix::unistd::pipe().expect("Failed to create a pipe");
 
@@ -81,7 +81,7 @@ impl Controller {
                 stat: Mutex::new(Metrics::new()),
                 notifier: unsafe{ File::from_raw_fd(notifier) },
                 debug,
-                snap,
+                snapshot,
             }),
             listener: unsafe{ File::from_raw_fd(listener) },
         }
@@ -315,7 +315,7 @@ impl Inner {
         let (req_sender, req_receiver) = channel();
 
         let mut load_dir = None;
-        if self.snap{
+        if self.snapshot{
             load_dir = config.load_dir;
         }
 
