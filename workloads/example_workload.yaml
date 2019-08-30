@@ -1,6 +1,6 @@
 - name: "loremjs"
-  arrival_rate: 50
-  num_invocation: 50
+  arrival_rate: 500
+  num_invocation: 500
 - name: "lorempy2"
   arrival_rate: 500
-  num_invocation: 50
+  num_invocation: 500
