@@ -56,6 +56,7 @@ while not finished(search_index, num_invocations):
     min_idx = np.argmin(candidates)
 
     interval = minv - pmin
+    pmin = minv
 
     json.dump({"interval": int(interval), "function": function_names[min_idx], "payload":{"request": 42}}, fd)
     fd.write('\n')
