@@ -163,7 +163,8 @@ fn main() {
     println!("{} requests dropped", num_drop);
     println!("total time: {}ms", total_time);
     println!("throughput: {} req/sec", num_complete as f32 /((total_time as f32) /1000.));
-//    println!("{:?}", controller.get_stat().boot_timestamp);
+    println!("{:?}", controller.get_stat().boot_timestamp);
+    println!("{:?}", controller.get_stat().req_e2e_latency);
 
     controller.kill_all();
 }

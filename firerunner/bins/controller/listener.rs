@@ -97,6 +97,6 @@ impl<T: Read + Write> ConnectionManager<T> {
                 break;
             }
         }
-        println!("Connection Manager exit");
+//        println!("Connection Manager exit");
     }
 }

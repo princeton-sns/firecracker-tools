@@ -163,7 +163,8 @@ impl Inner {
         // Check if I have an idle VM
         match self.get_idle_vm(&req) {
             Some(vm) => {
-                println!("Found idle VM for {}", req.function);
+//                println!("Found idle VM for {}", req.function);
+                self.stat.lock().unwrap().log_request_timestamp(vm.id, time::precise_time_ns());
                 self.send_request(req, vm);
             },
             None => {
@@ -178,11 +179,13 @@ impl Inner {
 
                 let mut cluster = self.cluster.lock().unwrap();
                 match cluster.find_free_machine(req_cpu, req_mem) {
-                    Some((id,_)) => {
-                        cluster.allocate(id, req_cpu, req_mem);
+                    Some((host_id,_)) => {
+                        cluster.allocate(host_id, req_cpu, req_mem);
+
                         let new_vm = self.launch_new_vm(&req);
 //                        println!("New VM: {:?}", new_vm);
-                        self.stat.lock().unwrap().log_boot_timestamp(new_vm.id, time::precise_time_ns());
+                        self.stat.lock().unwrap()
+                            .log_request_timestamp(new_vm.id, time::precise_time_ns());
                         self.send_request(req, new_vm);
                     },
                     // Evict an idle VM running some other functions
@@ -199,9 +202,11 @@ impl Inner {
                             cluster.allocate(0, req_cpu, req_mem);
 
 //                            println!("new vm {:?}", &new_vm);
+                            self.stat.lock().unwrap()
+                                .log_request_timestamp(new_vm.id, time::precise_time_ns());
                             self.send_request(req, new_vm);
                        } else {
-                            println!("Dropping request for {}", &req.function);
+//                            println!("Dropping request for {}", &req.function);
                             self.stat.lock().unwrap().drop_req(1);
                         }
                         return;
@@ -250,12 +255,12 @@ impl Inner {
                 let evict_mem: usize = self.function_configs.get(&func_name).unwrap().memory;
 
                 if evict_cpu >= req_cpu && evict_mem >= req_mem && idle_list.len() > 0 {
-                    println!("Found evictable VM of function {}", func_name);
+//                    println!("Found evictable VM of function {}", func_name);
                     return Some((idle_list.pop().unwrap(), evict_cpu, evict_mem));
                 }
             }
         }
-        println!("Couldn't find evictable vm that meets resources requirements");
+//        println!("Couldn't find evictable vm that meets resources requirements");
         None
 
     }
@@ -291,6 +296,7 @@ impl Inner {
             load_dir = config.load_dir;
         }
 
+        self.stat.lock().unwrap().log_boot_timestamp(id, time::precise_time_ns());
         let app = VmAppConfig {
             kernel: self.kernel.clone(),
             //kernel: String::from("foo"),
@@ -327,6 +333,7 @@ impl Inner {
 
     pub fn process_response(&self, response: (u32, String, Vec<u8>)) {
         let (id, function, response) = response;
+        self.stat.lock().unwrap().log_request_timestamp(id, time::precise_time_ns());
         println!("{}, {}: {}", id, function, String::from_utf8(response).unwrap());
 
         self.stat.lock().unwrap().complete_req(1);
@@ -344,7 +351,7 @@ impl Inner {
                 break;
             }
         }
-        println!("Function {}, running: {}, idle: {}", function, running_list.len(), idle_list.len());
+//        println!("Function {}, running: {}, idle: {}", function, running_list.len(), idle_list.len());
 
     }
 }
