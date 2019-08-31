@@ -26,4 +26,5 @@ serde = { version = "*", features = ["derive"] }
 serde_json = "*"
 serde_yaml = "*"
 num_cpus = "1.0"
+time = "0.1"
 [workspace]

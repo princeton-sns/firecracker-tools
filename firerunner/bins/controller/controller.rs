@@ -141,100 +141,66 @@ impl Controller {
 
 impl Inner {
 
+    // Send a request to the vm. If success, push the vm to the running_function vector.
+    // If not, push the vm the idle_function vector.
+    fn send_request(&self, req: request::Request, vm: Vm) {
+        let function_name = req.function.clone();
+        match vm.req_sender.send(req) {
+            Ok(_) => {
+                self.running_functions.lock().unwrap().get_mut(&function_name)
+                    .unwrap().push(vm);
+            },
+            Err(e) => {
+                println!("Request failed to send to vm: {:?}, error: {}", vm, e);
+                self.idle_functions.lock().unwrap().get_mut(&function_name)
+                    .unwrap().push(vm);
+            }
+        }
+    }
+
+
     fn aws_schedule(&self, req: request::Request) {
         // Check if I have an idle VM
         match self.get_idle_vm(&req) {
             Some(vm) => {
                 println!("Found idle VM for {}", req.function);
-                let function_name = req.function.clone();
-                match vm.req_sender.send(req) {
-                    Ok(_) => {
-                        self.running_functions.lock().unwrap().get_mut(&function_name)
-                            .unwrap().push(vm);
-                    },
-                    Err(e) => {
-                        println!("Request failed to send to vm: {:?}, error: {}", vm, e);
-                        self.idle_functions.lock().unwrap().get_mut(&function_name)
-                            .unwrap().push(vm);
-                    }
-                }
+                self.send_request(req, vm);
             },
             None => {
-                // check if creating a new vm for this function would exceeds concurrency
-                // limit. This includes both boot a new vm and evicting an existing vm.
-                let curr_concur = self.get_current_concurrency(&req);
-//                println!("Current concurrency for function {}: {}",
-//                         &req.function, &curr_concur);
-
-                if curr_concur >= self.function_configs.get(&req.function)
-                                      .unwrap().concurrency_limit {
-                    // drop the request
-                    println!("Dropping request for {}", &req.function);
+                if self.check_concurrency(&req) {
+//                    println!("Dropping request for {}", &req.function);
                     self.stat.lock().unwrap().drop_req(1);
                     return;
                 }
 
-                // Check if there's free (unallocated) resource to launch a new VM
-                let req_cpu: u64 = self.function_configs.get(&req.function).unwrap().vcpus;
-                let req_mem: usize = self.function_configs.get(&req.function).unwrap().memory;
+                // Check if there's enough free resource to launch a new VM
+                let (req_cpu, req_mem) = self.function_configs.resource_req(&req.function).unwrap();
 
                 let mut cluster = self.cluster.lock().unwrap();
                 match cluster.find_free_machine(req_cpu, req_mem) {
                     Some((id,_)) => {
-
                         cluster.allocate(id, req_cpu, req_mem);
                         let new_vm = self.launch_new_vm(&req);
 //                        println!("New VM: {:?}", new_vm);
-                        let function_name = req.function.clone();
-
-                        match new_vm.req_sender.send(req) {
-                            Ok(_) => {
-                                self.running_functions.lock().unwrap().get_mut(&function_name)
-                                    .unwrap().push(new_vm);
-                            },
-                            Err(e) => {
-                                println!("Request failed to send to vm: {:?}, error: {}", new_vm, e);
-                                self.idle_functions.lock().unwrap().get_mut(&function_name)
-                                    .unwrap().push(new_vm);
-                            }
-                        }
-
+                        self.stat.lock().unwrap().log_boot_timestamp(new_vm.id, time::precise_time_ns());
+                        self.send_request(req, new_vm);
                     },
                     // Evict an idle VM running some other functions
                     None => {
-                        //TODO
 //                        println!("No free resources, picking a VM to evict");
                         if let Some((evict_vm, evict_cpu, evict_mem)) = self.get_evictable_vm(&req) {
 
-//                            println!("evict candidate {:?}, cpu: {}, mem: {}",
-//                                     &evict_vm, &evict_cpu, &evict_mem);
                             let new_vm = self.evict_and_swap(&req, evict_vm);
 
                             cluster.free(0, evict_cpu, evict_mem);
-                            let req_cpu: u64 = self.function_configs
-                                                   .get(&req.function).unwrap().vcpus;
-                            let req_mem: usize = self.function_configs
-                                                     .get(&req.function).unwrap().memory;
-//                            println!("allocating {} cpu, {} mem for new vm", &req_cpu, &req_mem);
+                            let (req_cpu, req_mem) = self.function_configs
+                                                         .resource_req(&req.function)
+                                                         .unwrap();
                             cluster.allocate(0, req_cpu, req_mem);
 
 //                            println!("new vm {:?}", &new_vm);
-
-                            let function_name = req.function.clone();
-
-                            match new_vm.req_sender.send(req) {
-                                Ok(_) => {
-                                    self.running_functions.lock().unwrap().get_mut(&function_name)
-                                        .unwrap().push(new_vm);
-                                },
-                                Err(e) => {
-                                    println!("Request failed to send to vm: {:?}, error: {}",
-                                             new_vm, e);
-                                    self.idle_functions.lock().unwrap().get_mut(&function_name)
-                                        .unwrap().push(new_vm);
-                                }
-                            }
-                        } else {
+                            self.send_request(req, new_vm);
+                       } else {
                             println!("Dropping request for {}", &req.function);
                             self.stat.lock().unwrap().drop_req(1);
                         }
@@ -255,7 +221,13 @@ impl Inner {
 
     }
 
-    // For a particular function, acquire an idle VM instance
+    fn check_concurrency(&self, req: &request::Request) -> bool {
+        let curr_concur = self.get_current_concurrency(&req);
+        curr_concur >= self.function_configs.get(&req.function).unwrap().concurrency_limit
+
+    }
+
+        // For a particular function, acquire an idle VM instance
     pub fn get_idle_vm(&self, req: &request::Request) -> Option<Vm> {
         match self.idle_functions.lock().unwrap().get_mut(&req.function) {
             Some(vms) => {

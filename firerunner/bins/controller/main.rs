@@ -6,6 +6,7 @@ extern crate serde_json;
 extern crate vmm;
 extern crate nix;
 extern crate cgroups;
+extern crate time;
 
 use std::io::BufRead;
 
@@ -124,12 +125,16 @@ fn main() {
 
     controller.ignite();
 
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let workload_start = time::precise_time_ns();
+
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
         match request::parse_json(line) {
             Ok(req) => {
                 // Check function existence at the gateway
                 if !app_configs.exist(&req.function){
-                    println!("function {} doesn't exist", &req.function);
+//                    println!("function {} doesn't exist", &req.function);
                     continue;
                 }
 
@@ -143,14 +148,22 @@ fn main() {
         }
     }
 
-    println!("All requests exhausted");
+//    println!("All requests exhausted");
 
     while controller.check_running() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    println!("{} requests completed", controller.get_stat().num_complete);
-    println!("{} requests dropped", controller.get_stat().num_drop);
+    let workload_end = time::precise_time_ns();
+    let total_time = (workload_end - workload_start) / 1_000_000; // in ms
+    let num_complete = controller.get_stat().num_complete;
+    let num_drop = controller.get_stat().num_drop;
+
+    println!("{} requests completed", num_complete);
+    println!("{} requests dropped", num_drop);
+    println!("total time: {}ms", total_time);
+    println!("throughput: {} req/sec", num_complete as f32 /((total_time as f32) /1000.));
+//    println!("{:?}", controller.get_stat().boot_timestamp);
 
     controller.kill_all();
 }
