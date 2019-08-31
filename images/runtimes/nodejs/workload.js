@@ -26,8 +26,12 @@ rl = readline.createInterface({
 execSync("outl 126 0x3f0");
 
 rl.on('line', (line) => {
+  var hrstart = process.hrtime()
   let req = JSON.parse(line);
   app.handle(req, function(resp) {
+    var hrend = process.hrtime(hrstart)
+    resp.runtime_sec = hrend[0];
+    resp.runtime_ms = hrend[1] / 1000000;
     let respJS = JSON.stringify(resp);
     process.stdout.write(Buffer.from([respJS.length]));
     process.stdout.write(respJS, "utf8");
