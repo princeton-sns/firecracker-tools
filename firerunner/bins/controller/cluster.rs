@@ -21,8 +21,8 @@ pub struct MachineInfo {
 pub struct Cluster {
     num_hosts: u32,     // number of physical hosts in the cluster
     host_list: Vec<MachineInfo>,       // host name to machine config mapping
-    total_cpu: u64,     // total number of core across all hosts in the cluster
-    total_mem: usize,     // total amount of memroy across all hosts in the cluster (MB)
+    pub total_cpu: u64,     // total number of core across all hosts in the cluster
+    pub total_mem: usize,     // total amount of memroy across all hosts in the cluster (MB)
     total_free_cpu: u64,
     total_free_mem: usize,
 }

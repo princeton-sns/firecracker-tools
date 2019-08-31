@@ -37,7 +37,7 @@ pub struct Inner {
     seccomp_level: u32,
     cmd_line: String,
     kernel: String,
-    stat: Mutex<Metrics>,
+    stat: Arc<Mutex<Metrics>>,
     notifier: File,
     debug: bool,          // whether VMs keeps stdout
     snapshot: bool,
@@ -78,7 +78,7 @@ impl Controller {
                 cmd_line,
                 kernel,
                 function_configs,
-                stat: Mutex::new(Metrics::new()),
+                stat: Arc::new(Mutex::new(Metrics::new())),
                 notifier: unsafe{ File::from_raw_fd(notifier) },
                 debug,
                 snapshot,
@@ -96,7 +96,10 @@ impl Controller {
 
         // Create RequestManager thread
         let listener = self.listener.try_clone().expect("Failed to clone pipe listener");
-        let manager_handle = listener::RequestManager::new(self.inner.channels.clone(), response_sender, listener).spawn();
+        let manager_handle = listener::RequestManager::new(self.inner.channels.clone(),
+                                                           self.inner.stat.clone(),
+                                                           response_sender, listener)
+                                                      .spawn();
 
         // Create ResponseHandler thread
         let inner = self.inner.clone();
@@ -281,7 +284,15 @@ impl Inner {
     }
 
     pub fn evict_and_swap(&self, req: &request::Request, evict_vm: Vm) -> Vm {
+        let t0 = time::precise_time_ns();
+        let id = evict_vm.id;
         self.evict(evict_vm);
+        let t1 = time::precise_time_ns();
+        {
+            let mut stat = self.stat.lock().unwrap();
+            stat.log_eviction_timestamp(id, t0);
+            stat.log_eviction_timestamp(id, t1);
+        }
         self.launch_new_vm(req)
     }
 
