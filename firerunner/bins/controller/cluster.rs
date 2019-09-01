@@ -6,6 +6,7 @@ use std::fs::File;
 use std::io::{BufReader, BufRead};
 
 const MEM_FILE: &str = "/proc/meminfo";     // meminfo file on linux
+const KB_IN_MB: usize = 1024;
 
 #[derive(Debug)]
 pub struct MachineInfo {
@@ -55,6 +56,8 @@ impl Cluster{
                 Err(e) => println!("Reading meminfo file error: {:?}", e)
             }
         }
+
+        let mem = mem / KB_IN_MB;
 
         let mc = MachineInfo{
             id: String::from("1"),

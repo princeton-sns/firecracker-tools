@@ -16,6 +16,7 @@ use super::metrics::Metrics;
 use firerunner::runner::{VmApp, VmAppConfig};
 use firerunner::pipe_pair::PipePair;
 
+const MEM_4G: usize = 4096;  // in MB
 // represent an VM from a management perspective
 // differs from runner::VmApp or VmAppConfig that represent an Vm from execution perspective
 #[derive(Debug)]
@@ -41,6 +42,7 @@ pub struct Inner {
     notifier: File,
     debug: bool,          // whether VMs keeps stdout
     snapshot: bool,
+    one_hyperthread_mem_size: usize,
 }
 
 pub struct Controller {
@@ -66,9 +68,13 @@ impl Controller {
         let running_functions = Mutex::new(running_functions);
         let idle_functions = Mutex::new(idle_functions);
 
+        let my_cluster = cluster::Cluster::new();
+        let one_hyperthread_mem_size: usize = (my_cluster.total_mem - MEM_4G) /
+                                               my_cluster.total_cpu as usize;
+
         Controller {
             inner: Arc::new(Inner {
-                cluster: Mutex::new(cluster::Cluster::new()),
+                cluster: Mutex::new(my_cluster),
                 running_functions,
                 idle_functions,
 
@@ -82,6 +88,7 @@ impl Controller {
                 notifier: unsafe{ File::from_raw_fd(notifier) },
                 debug,
                 snapshot,
+                one_hyperthread_mem_size,
             }),
             listener: unsafe{ File::from_raw_fd(listener) },
         }
@@ -296,6 +303,11 @@ impl Inner {
         self.launch_new_vm(req)
     }
 
+    fn cpu_share(&self, mem: usize) -> u64 {
+
+    1
+    }
+
     pub fn launch_new_vm(&self, req: &request::Request) -> Vm {
         let config = self.function_configs.get(&req.function).unwrap();
 
@@ -306,6 +318,9 @@ impl Inner {
         if self.snapshot{
             load_dir = config.load_dir;
         }
+
+        let mem = config.memory;
+        let cpu_share = self.cpu_share(mem);
 
         self.stat.lock().unwrap().log_boot_timestamp(id, time::precise_time_ns());
         let app = VmAppConfig {
