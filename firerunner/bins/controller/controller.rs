@@ -17,6 +17,7 @@ use firerunner::runner::{VmApp, VmAppConfig};
 use firerunner::pipe_pair::PipePair;
 
 const MEM_4G: usize = 4096;  // in MB
+const VM_SIZE_INCREMENT: usize = 128; // in MB
 // represent an VM from a management perspective
 // differs from runner::VmApp or VmAppConfig that represent an Vm from execution perspective
 #[derive(Debug)]
@@ -185,12 +186,12 @@ impl Inner {
                 }
 
                 // Check if there's enough free resource to launch a new VM
-                let (req_cpu, req_mem) = self.function_configs.resource_req(&req.function).unwrap();
+                let (_, req_mem) = self.function_configs.resource_req(&req.function).unwrap();
 
                 let mut cluster = self.cluster.lock().unwrap();
-                match cluster.find_free_machine(req_cpu, req_mem) {
+                match cluster.find_free_machine(req_mem) {
                     Some((host_id,_)) => {
-                        cluster.allocate(host_id, req_cpu, req_mem);
+                        cluster.allocate(host_id, req_mem);
 
                         let new_vm = self.launch_new_vm(&req);
 //                        println!("New VM: {:?}", new_vm);
@@ -201,15 +202,15 @@ impl Inner {
                     // Evict an idle VM running some other functions
                     None => {
 //                        println!("No free resources, picking a VM to evict");
-                        if let Some((evict_vm, evict_cpu, evict_mem)) = self.get_evictable_vm(&req) {
+                        if let Some((evict_vm, _, evict_mem)) = self.get_evictable_vm(&req) {
 
                             let new_vm = self.evict_and_swap(&req, evict_vm);
 
-                            cluster.free(0, evict_cpu, evict_mem);
-                            let (req_cpu, req_mem) = self.function_configs
+                            cluster.free(0, evict_mem);
+                            let (_, req_mem) = self.function_configs
                                                          .resource_req(&req.function)
                                                          .unwrap();
-                            cluster.allocate(0, req_cpu, req_mem);
+                            cluster.allocate(0, req_mem);
 
 //                            println!("new vm {:?}", &new_vm);
                             self.stat.lock().unwrap()
@@ -304,8 +305,12 @@ impl Inner {
     }
 
     fn cpu_share(&self, mem: usize) -> u64 {
+        (mem / VM_SIZE_INCREMENT) as u64
+    }
 
-    1
+    fn vcpu_count(&self, mem: usize) -> u64 {
+        let count = math::round::ceil(mem as f64 / self.one_hyperthread_mem_size as f64, 0);
+        count as u64
     }
 
     pub fn launch_new_vm(&self, req: &request::Request) -> Vm {
@@ -321,6 +326,7 @@ impl Inner {
 
         let mem = config.memory;
         let cpu_share = self.cpu_share(mem);
+        let vcpu_count = self.vcpu_count(mem);
 
         self.stat.lock().unwrap().log_boot_timestamp(id, time::precise_time_ns());
         let app = VmAppConfig {
@@ -335,7 +341,8 @@ impl Inner {
             notifier: self.notifier.try_clone().expect("Failed to clone notifier"),
             // we really want this to be a function of VPU and memory count, so that
             // cpu_share is proportional to the size of the function
-            cpu_share: config.vcpus,
+            cpu_share: cpu_share,
+            vcpu_count: vcpu_count,
             mem_size_mib: Some(config.memory),
             load_dir,
             dump_dir: None, // ignored by now

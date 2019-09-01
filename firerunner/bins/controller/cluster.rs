@@ -78,42 +78,38 @@ impl Cluster{
     }
 
     // Find a machine in the cluster that has enough resources to boot a new VM for a function
-    pub fn find_free_machine(&self, req_cpu: u64, req_mem: usize) -> Option<(u32, &MachineInfo)> {
+    pub fn find_free_machine(&self, req_mem: usize) -> Option<(u32, &MachineInfo)> {
 
         for (i, m) in self.host_list.iter().enumerate() {
-            if m.free_cpu >= req_cpu && m.free_mem >= req_mem {
+            if m.free_mem >= req_mem {
                 return Some((i as u32,m));
             }
         }
         return None;
     }
 
-    pub fn allocate(&mut self, id: u32, req_cpu: u64, req_mem: usize) {
+    pub fn allocate(&mut self, id: u32, req_mem: usize) {
         self.total_free_mem = self.total_free_mem - req_mem;
-        self.total_free_cpu = self.total_free_cpu - req_cpu;
-        self.host_list.get_mut(id as usize).unwrap().allocate(req_cpu, req_mem);
+        self.host_list.get_mut(id as usize).unwrap().allocate(req_mem);
     }
 
     pub fn free_resources(&self) -> (u64, usize) {
         (self.total_free_cpu, self.total_free_mem)
     }
 
-    pub fn free(&mut self, id: u32, cpu: u64, mem: usize) {
-        self.total_free_cpu = self.total_free_cpu + cpu;
+    pub fn free(&mut self, id: u32, mem: usize) {
         self.total_free_mem = self.total_free_mem + mem;
-        self.host_list.get_mut(id as usize).unwrap().free(cpu, mem);
+        self.host_list.get_mut(id as usize).unwrap().free(mem);
     }
 
 }
 
 impl MachineInfo {
-    pub fn allocate(&mut self, req_cpu: u64, req_mem: usize) {
+    pub fn allocate(&mut self, req_mem: usize) {
         self.free_mem = self.free_mem - req_mem;
-        self.free_cpu = self.free_cpu - req_cpu;
     }
 
-    pub fn free(&mut self, req_cpu: u64, req_mem: usize) {
+    pub fn free(&mut self, req_mem: usize) {
         self.free_mem = self.free_mem + req_mem;
-        self.free_cpu = self.free_cpu + req_cpu;
     }
 }

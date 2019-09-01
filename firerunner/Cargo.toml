@@ -27,4 +27,5 @@ serde_json = "*"
 serde_yaml = "*"
 num_cpus = "1.0"
 time = "0.1"
+libmath = "0.2.1"
 [workspace]
