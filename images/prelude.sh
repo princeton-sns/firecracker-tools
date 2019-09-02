@@ -6,7 +6,7 @@ cp /common/outl /usr/bin/outl
 ## Create start script for that mounts the appfs and invokes whatever binary is in /srv/workload
 printf '#!/bin/sh\n
 stty -F /dev/ttyS1 -echo >/dev/null\n
-exec /bin/runtime-workload >/dev/ttyS1\n' > /bin/workload
+exec /bin/runtime-workload\n' > /bin/workload
 chmod +x /bin/workload
 
 ## Have the start script invoked by openrc/init
