@@ -30,8 +30,10 @@ const app = require("/srv/workload");
 rl.on('line', (line) => {
   let req = JSON.parse(line);
   app.handle(req, function(resp) {
-    let respJS = JSON.stringify(resp);
-    out.write(Buffer.from([respJS.length]));
-    out.write(respJS, "utf8");
+    let respJS = Buffer.from(JSON.stringify(resp));
+    let lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32BE(respJS.length);
+    out.write(lenBuf);
+    out.write(respJS);
   });
 });

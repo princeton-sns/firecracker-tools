@@ -77,13 +77,14 @@ impl<T: Read + Write> ConnectionManager<T> {
         let mut request = serde_json::to_vec(&request).unwrap();
         request.push(0xa); // newline
         connection.write_all(request.as_slice())?;
-        let mut lens = [0];
+        let mut lens = [0; 4];
         connection.read_exact(&mut lens)?;
-        if lens[0] == 0 {
+        let len = u32::from_be_bytes(lens);
+        if len == 0 {
             return Ok(vec![]);
         }
-        let mut response = Vec::with_capacity(lens[0] as usize);
-        response.resize(lens[0] as usize, 0);
+        let mut response = Vec::with_capacity(len as usize);
+        response.resize(len as usize, 0);
         connection.read_exact(response.as_mut_slice())?;
         Ok(response)
     }
