@@ -7,6 +7,7 @@ use std::io::{BufReader, BufRead};
 
 const MEM_FILE: &str = "/proc/meminfo";     // meminfo file on linux
 const KB_IN_MB: usize = 1024;
+const MEM_4G: usize = 4096;  // in MB
 
 #[derive(Debug)]
 pub struct MachineInfo {
@@ -45,8 +46,6 @@ impl Cluster{
         for line in BufReader::new(memfile).lines(){
             match line {
                 Ok(c) => {
-                    // example line with total memory information:
-                    // MemTotal:       16322876 kB
                     let parts: Vec<&str> = c.split(':').map(|s| s.trim()).collect();
                     if parts[0] == "MemTotal" {
                         mem = parts[1].split(' ').collect::<Vec<&str>>()[0].parse::<usize>().unwrap();
@@ -57,7 +56,7 @@ impl Cluster{
             }
         }
 
-        let mem = mem / KB_IN_MB;
+        let mem = mem / KB_IN_MB - MEM_4G;
 
         let mc = MachineInfo{
             id: String::from("1"),
