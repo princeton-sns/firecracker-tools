@@ -24,8 +24,8 @@ with open('/dev/ttyS1', 'r') as tty, open('/dev/ttyS1', 'w') as out:
     app = imp.load_source('app', '/srv/workload')
 
     while True:
-        t0 = time.clock()
         request = json.loads(tty.readline())
+        t0 = time.clock()
 
         response = app.handle(request)
         t1 = time.clock()
