@@ -103,7 +103,6 @@ if __name__ == "__main__":
             timestamp = np.append(timestamp, \
                                   generate_request_timestamps(windows[i], windows[i+1], mu))
 
-        print(timestamp)
         workload.append(timestamp)
 
     search_index = np.zeros(num_functions, dtype=np.int32)
