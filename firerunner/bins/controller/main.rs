@@ -6,10 +6,16 @@ extern crate serde_json;
 extern crate vmm;
 extern crate nix;
 extern crate cgroups;
+extern crate time;
+extern crate math;
 
 use std::io::BufRead;
+use serde_json::json;
 
 use clap::{App, Arg};
+use std::path::Path;
+use std::fs::File;
+use std::error::Error;
 
 mod config;
 mod controller;
@@ -124,12 +130,16 @@ fn main() {
 
     controller.ignite();
 
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    let workload_start = time::precise_time_ns();
+
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
         match request::parse_json(line) {
             Ok(req) => {
                 // Check function existence at the gateway
                 if !app_configs.exist(&req.function){
-                    println!("function {} doesn't exist", &req.function);
+//                    println!("function {} doesn't exist", &req.function);
                     continue;
                 }
 
@@ -143,14 +153,55 @@ fn main() {
         }
     }
 
-    println!("All requests exhausted");
+//    println!("All requests exhausted");
 
     while controller.check_running() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    println!("{} requests completed", controller.get_stat().num_complete);
-    println!("{} requests dropped", controller.get_stat().num_drop);
+    let workload_end = time::precise_time_ns();
+
+    let total_time = (workload_end - workload_start) / 1_000_000; // in ms
+    let num_complete = controller.get_stat().num_complete;
+    let num_drop = controller.get_stat().num_drop;
+    let num_vm = controller.get_stat().boot_timestamp.len();
+    let num_evict = controller.get_stat().eviction_timestamp.len();
+
+    println!("{} requests completed", num_complete);
+    println!("{} requests dropped", num_drop);
+    println!("total time: {}ms", total_time);
+    println!("throughput: {} req/sec", num_complete as f32 /((total_time as f32) /1000.));
+    println!("Booted a total of {} VMs", num_vm);
+    println!("Number of evictions: {}", num_evict);
+
+    // Output time measurement as a json string
+    let res = json!({
+        "total cpu": controller.get_cluster_info().total_cpu,
+        "total mem": controller.get_cluster_info().total_mem,
+        "app config file": cmd_arguments.value_of("function config file").unwrap(),
+        "requests file": cmd_arguments.value_of("requests file").unwrap(),
+        "start time": workload_start,
+        "end time": workload_end,
+        "boot timestamps": controller.get_stat().boot_timestamp,
+        "request/response timestamps": controller.get_stat().request_response_timestamp,
+        "eviction timestamps": controller.get_stat().eviction_timestamp
+    });
+
+
+    let output_filename = format!("measurement-{}-{}.json", workload_start, workload_end);
+    let output_path = format!("measurements/{}", output_filename);
+    let path = Path::new(&output_path);
+
+    let mut file = match File::create(&path) {
+        Err(e) => panic!("couldn't create {}: {}", path.display(), e.description()),
+        Ok(file) => file,
+    };
+
+    if let Err(e) = serde_json::to_writer_pretty(file, &res) {
+        panic!("failed to write measurement results as json: {}", e.description());
+    }
+
+    println!("Measurement results written to: ./measurements/{}", output_filename);
 
     controller.kill_all();
 }

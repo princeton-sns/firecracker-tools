@@ -7,6 +7,7 @@ import struct
 import json
 from subprocess import call, Popen
 import multiprocessing as mp
+import time
 
 # for snapshot
 for i in range(1, mp.cpu_count()):
@@ -23,9 +24,12 @@ with open('/dev/ttyS1', 'r') as tty, open('/dev/ttyS1', 'w') as out:
     app = imp.load_source('app', '/srv/workload')
 
     while True:
+        t0 = time.clock()
         request = json.loads(tty.readline())
 
         response = app.handle(request)
+        t1 = time.clock()
+        response['runtime'] = (t1-t0) * 1000
 
         responseJson = json.dumps(response)
 

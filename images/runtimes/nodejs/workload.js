@@ -28,8 +28,12 @@ module.paths.push("/srv/node_modules");
 const app = require("/srv/workload");
 
 rl.on('line', (line) => {
+  var hrstart = process.hrtime()
   let req = JSON.parse(line);
   app.handle(req, function(resp) {
+    var hrend = process.hrtime(hrstart)
+    resp.runtime_sec = hrend[0];
+    resp.runtime_ms = hrend[1] / 1000000;
     let respJS = JSON.stringify(resp);
     out.write(Buffer.from([respJS.length]));
     out.write(respJS, "utf8");

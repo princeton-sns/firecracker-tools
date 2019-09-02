@@ -54,6 +54,13 @@ impl Configuration {
     pub fn exist(&self, name: &String) -> bool {
         self.configs.contains_key(name)
     }
+
+    // return the resource requirement of a function specified by its name
+    pub fn resource_req(&self, name: &String) -> Option<(u64, usize)> {
+        self.configs.get(name).map(|c| {
+            (c.vcpus, c.memory)
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
