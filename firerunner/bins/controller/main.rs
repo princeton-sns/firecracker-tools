@@ -7,6 +7,7 @@ extern crate vmm;
 extern crate nix;
 extern crate cgroups;
 extern crate time;
+extern crate math;
 
 use std::io::BufRead;
 use serde_json::json;
