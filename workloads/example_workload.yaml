@@ -1,6 +1,8 @@
 - name: "loremjs"
-  arrival_rate: 500
-  num_invocation: 500
+  mu: 2 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 5000 # ms
 - name: "lorempy2"
-  arrival_rate: 500
-  num_invocation: 500
+  mu: 2 
+  start_time: 5000
+  end_time: 10000
