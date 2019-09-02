@@ -1,5 +1,4 @@
 const { execSync, exec } = require("child_process");
-const process = require("process");
 const readline = require("readline");
 const fs = require("fs");
 
@@ -19,6 +18,9 @@ rl = readline.createInterface({
     input: fs.createReadStream('/dev/ttyS1'),
     crlfDelay: Infinity
 });
+
+out = fs.createWriteStream('/dev/ttyS1');
+
 // signal Firerunner that we are ready to receive requests
 execSync("outl 126 0x3f0");
 
@@ -29,7 +31,7 @@ rl.on('line', (line) => {
   let req = JSON.parse(line);
   app.handle(req, function(resp) {
     let respJS = JSON.stringify(resp);
-    process.stdout.write(Buffer.from([respJS.length]));
-    process.stdout.write(respJS, "utf8");
+    out.write(Buffer.from([respJS.length]));
+    out.write(respJS, "utf8");
   });
 });
