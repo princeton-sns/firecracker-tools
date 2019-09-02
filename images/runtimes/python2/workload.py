@@ -16,12 +16,13 @@ call('taskset -c 0 outl 124 0x3f0', shell=True)
 
 os.system("mount -r /dev/vdb /srv")
 
-sys.path.append('/srv/package')
-app = imp.load_source('app', '/srv/workload')
-
-with open('/dev/ttyS1', 'r') as tty:
+with open('/dev/ttyS1', 'r') as tty, open('/dev/ttyS1', 'w') as out:
     # signal firerunner we are ready
     call('outl 126 0x3f0', shell=True)
+
+    sys.path.append('/srv/package')
+    app = imp.load_source('app', '/srv/workload')
+
     while True:
         t0 = time.clock()
         request = json.loads(tty.readline())
@@ -32,6 +33,6 @@ with open('/dev/ttyS1', 'r') as tty:
 
         responseJson = json.dumps(response)
 
-        sys.stdout.write(struct.pack("@B", len(responseJson)))
-        sys.stdout.write(bytes(responseJson))
-        sys.stdout.flush()
+        out.write(struct.pack("@B", len(responseJson)))
+        out.write(bytes(responseJson))
+        out.flush()
