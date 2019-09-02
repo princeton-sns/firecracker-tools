@@ -8,15 +8,12 @@ const fs = require("fs");
 // and that other cpus writes to the port before us
 // since as of now snapshots are created offline, we are fine
 const cpu_count = require("os").cpus().length;
-for (var i = 0; i < cpu_count; i++) {
+for (var i = 1; i < cpu_count; i++) {
     exec(`taskset -c ${i} outl 124 0x3f0`);
 }
 execSync("taskset -c 0 outl 124 0x3f0");
 
 execSync("mount -r /dev/vdb /srv");
-
-module.paths.push("/srv/node_modules");
-const app = require("/srv/workload");
 
 rl = readline.createInterface({
     input: fs.createReadStream('/dev/ttyS1'),
@@ -24,6 +21,9 @@ rl = readline.createInterface({
 });
 // signal Firerunner that we are ready to receive requests
 execSync("outl 126 0x3f0");
+
+module.paths.push("/srv/node_modules");
+const app = require("/srv/workload");
 
 rl.on('line', (line) => {
   let req = JSON.parse(line);
