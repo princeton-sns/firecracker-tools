@@ -34,8 +34,10 @@ rl.on('line', (line) => {
     var hrend = process.hrtime(hrstart)
     resp.runtime_sec = hrend[0];
     resp.runtime_ms = hrend[1] / 1000000;
-    let respJS = JSON.stringify(resp);
-    out.write(Buffer.from([respJS.length]));
-    out.write(respJS, "utf8");
+    let respJS = Buffer.from(JSON.stringify(resp));
+    let lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32BE(respJS.length);
+    out.write(lenBuf);
+    out.write(respJS);
   });
 });

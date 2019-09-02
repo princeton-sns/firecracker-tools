@@ -161,9 +161,10 @@ fn main() {
     for mut line in stdin.lock().lines().map(|l| l.unwrap()) {
         line.push('\n');
         app.connection.write_all(line.as_bytes()).expect("Failed to write to request pipe");
-        let mut lens = [0];
+        let mut lens = [0; 4];
         app.connection.read_exact(&mut lens).expect("Failed to read response size");
-        let mut response = vec![0; lens[0] as usize];
+        let len = u32::from_be_bytes(lens);
+        let mut response = vec![0; len as usize];
         app.connection.read_exact(response.as_mut_slice()).expect("Failed to read response");
         println!("{}", String::from_utf8(response).unwrap());
     }

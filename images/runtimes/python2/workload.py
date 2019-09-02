@@ -33,6 +33,7 @@ with open('/dev/ttyS1', 'r') as tty, open('/dev/ttyS1', 'w') as out:
 
         responseJson = json.dumps(response)
 
-        out.write(struct.pack("@B", len(responseJson)))
+        out.write(struct.pack(">I", len(responseJson)))
         out.write(bytes(responseJson))
         out.flush()
+
