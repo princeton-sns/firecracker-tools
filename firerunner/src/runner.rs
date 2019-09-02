@@ -23,6 +23,7 @@ pub struct VmAppConfig {
     pub cmd_line: String,
     pub seccomp_level: u32,
     pub cpu_share: u64,
+    pub vcpu_count: u64,
     pub mem_size_mib: Option<usize>,
     pub load_dir: Option<PathBuf>, // ignored by now
     pub dump_dir: Option<PathBuf>, // ignored by now
@@ -122,7 +123,7 @@ impl VmAppConfig {
                                               self.vsock_cid);
 
                 let machine_config = VmConfig{
-                    vcpu_count: Some(self.cpu_share as u8),
+                    vcpu_count: Some(self.vcpu_count as u8),
                     mem_size_mib: self.mem_size_mib,
                     ..Default::default()
                 };

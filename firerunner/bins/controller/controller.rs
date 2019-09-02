@@ -16,6 +16,8 @@ use super::metrics::Metrics;
 use firerunner::runner::{VmApp, VmAppConfig};
 use firerunner::pipe_pair::PipePair;
 
+const MEM_4G: usize = 4096;  // in MB
+const VM_SIZE_INCREMENT: usize = 128; // in MB
 // represent an VM from a management perspective
 // differs from runner::VmApp or VmAppConfig that represent an Vm from execution perspective
 #[derive(Debug)]
@@ -37,10 +39,11 @@ pub struct Inner {
     seccomp_level: u32,
     cmd_line: String,
     kernel: String,
-    stat: Mutex<Metrics>,
+    stat: Arc<Mutex<Metrics>>,
     notifier: File,
     debug: bool,          // whether VMs keeps stdout
     snapshot: bool,
+    one_hyperthread_mem_size: usize,
 }
 
 pub struct Controller {
@@ -66,9 +69,13 @@ impl Controller {
         let running_functions = Mutex::new(running_functions);
         let idle_functions = Mutex::new(idle_functions);
 
+        let my_cluster = cluster::Cluster::new();
+        let one_hyperthread_mem_size: usize = (my_cluster.total_mem - MEM_4G) /
+                                               my_cluster.total_cpu as usize;
+
         Controller {
             inner: Arc::new(Inner {
-                cluster: Mutex::new(cluster::Cluster::new()),
+                cluster: Mutex::new(my_cluster),
                 running_functions,
                 idle_functions,
 
@@ -78,10 +85,11 @@ impl Controller {
                 cmd_line,
                 kernel,
                 function_configs,
-                stat: Mutex::new(Metrics::new()),
+                stat: Arc::new(Mutex::new(Metrics::new())),
                 notifier: unsafe{ File::from_raw_fd(notifier) },
                 debug,
                 snapshot,
+                one_hyperthread_mem_size,
             }),
             listener: unsafe{ File::from_raw_fd(listener) },
         }
@@ -96,7 +104,10 @@ impl Controller {
 
         // Create RequestManager thread
         let listener = self.listener.try_clone().expect("Failed to clone pipe listener");
-        let manager_handle = listener::RequestManager::new(self.inner.channels.clone(), response_sender, listener).spawn();
+        let manager_handle = listener::RequestManager::new(self.inner.channels.clone(),
+                                                           self.inner.stat.clone(),
+                                                           response_sender, listener)
+                                                      .spawn();
 
         // Create ResponseHandler thread
         let inner = self.inner.clone();
@@ -141,101 +152,72 @@ impl Controller {
 
 impl Inner {
 
+    // Send a request to the vm. If success, push the vm to the running_function vector.
+    // If not, push the vm the idle_function vector.
+    fn send_request(&self, req: request::Request, vm: Vm) {
+        let function_name = req.function.clone();
+        match vm.req_sender.send(req) {
+            Ok(_) => {
+                self.running_functions.lock().unwrap().get_mut(&function_name)
+                    .unwrap().push(vm);
+            },
+            Err(e) => {
+                println!("Request failed to send to vm: {:?}, error: {}", vm, e);
+                self.idle_functions.lock().unwrap().get_mut(&function_name)
+                    .unwrap().push(vm);
+            }
+        }
+    }
+
+
     fn aws_schedule(&self, req: request::Request) {
         // Check if I have an idle VM
         match self.get_idle_vm(&req) {
             Some(vm) => {
-                println!("Found idle VM for {}", req.function);
-                let function_name = req.function.clone();
-                match vm.req_sender.send(req) {
-                    Ok(_) => {
-                        self.running_functions.lock().unwrap().get_mut(&function_name)
-                            .unwrap().push(vm);
-                    },
-                    Err(e) => {
-                        println!("Request failed to send to vm: {:?}, error: {}", vm, e);
-                        self.idle_functions.lock().unwrap().get_mut(&function_name)
-                            .unwrap().push(vm);
-                    }
-                }
+//                println!("Found idle VM for {}", req.function);
+                self.stat.lock().unwrap().log_request_timestamp(vm.id, time::precise_time_ns());
+                self.send_request(req, vm);
             },
             None => {
-                // check if creating a new vm for this function would exceeds concurrency
-                // limit. This includes both boot a new vm and evicting an existing vm.
-                let curr_concur = self.get_current_concurrency(&req);
-//                println!("Current concurrency for function {}: {}",
-//                         &req.function, &curr_concur);
-
-                if curr_concur >= self.function_configs.get(&req.function)
-                                      .unwrap().concurrency_limit {
-                    // drop the request
-                    println!("Dropping request for {}", &req.function);
+                if self.check_concurrency(&req) {
+//                    println!("Dropping request for {}", &req.function);
                     self.stat.lock().unwrap().drop_req(1);
                     return;
                 }
 
-                // Check if there's free (unallocated) resource to launch a new VM
-                let req_cpu: u64 = self.function_configs.get(&req.function).unwrap().vcpus;
-                let req_mem: usize = self.function_configs.get(&req.function).unwrap().memory;
+                // Check if there's enough free resource to launch a new VM
+                let (_, req_mem) = self.function_configs.resource_req(&req.function).unwrap();
 
                 let mut cluster = self.cluster.lock().unwrap();
-                match cluster.find_free_machine(req_cpu, req_mem) {
-                    Some((id,_)) => {
+                match cluster.find_free_machine(req_mem) {
+                    Some((host_id,_)) => {
+                        cluster.allocate(host_id, req_mem);
 
-                        cluster.allocate(id, req_cpu, req_mem);
                         let new_vm = self.launch_new_vm(&req);
 //                        println!("New VM: {:?}", new_vm);
-                        let function_name = req.function.clone();
-
-                        match new_vm.req_sender.send(req) {
-                            Ok(_) => {
-                                self.running_functions.lock().unwrap().get_mut(&function_name)
-                                    .unwrap().push(new_vm);
-                            },
-                            Err(e) => {
-                                println!("Request failed to send to vm: {:?}, error: {}", new_vm, e);
-                                self.idle_functions.lock().unwrap().get_mut(&function_name)
-                                    .unwrap().push(new_vm);
-                            }
-                        }
-
+                        self.stat.lock().unwrap()
+                            .log_request_timestamp(new_vm.id, time::precise_time_ns());
+                        self.send_request(req, new_vm);
                     },
                     // Evict an idle VM running some other functions
                     None => {
-                        //TODO
 //                        println!("No free resources, picking a VM to evict");
-                        if let Some((evict_vm, evict_cpu, evict_mem)) = self.get_evictable_vm(&req) {
+                        if let Some((evict_vm, _, evict_mem)) = self.get_evictable_vm(&req) {
 
-//                            println!("evict candidate {:?}, cpu: {}, mem: {}",
-//                                     &evict_vm, &evict_cpu, &evict_mem);
                             let new_vm = self.evict_and_swap(&req, evict_vm);
 
-                            cluster.free(0, evict_cpu, evict_mem);
-                            let req_cpu: u64 = self.function_configs
-                                                   .get(&req.function).unwrap().vcpus;
-                            let req_mem: usize = self.function_configs
-                                                     .get(&req.function).unwrap().memory;
-//                            println!("allocating {} cpu, {} mem for new vm", &req_cpu, &req_mem);
-                            cluster.allocate(0, req_cpu, req_mem);
+                            cluster.free(0, evict_mem);
+                            let (_, req_mem) = self.function_configs
+                                                         .resource_req(&req.function)
+                                                         .unwrap();
+                            cluster.allocate(0, req_mem);
 
 //                            println!("new vm {:?}", &new_vm);
-
-                            let function_name = req.function.clone();
-
-                            match new_vm.req_sender.send(req) {
-                                Ok(_) => {
-                                    self.running_functions.lock().unwrap().get_mut(&function_name)
-                                        .unwrap().push(new_vm);
-                                },
-                                Err(e) => {
-                                    println!("Request failed to send to vm: {:?}, error: {}",
-                                             new_vm, e);
-                                    self.idle_functions.lock().unwrap().get_mut(&function_name)
-                                        .unwrap().push(new_vm);
-                                }
-                            }
-                        } else {
-                            println!("Dropping request for {}", &req.function);
+                            self.stat.lock().unwrap()
+                                .log_request_timestamp(new_vm.id, time::precise_time_ns());
+                            self.send_request(req, new_vm);
+                       } else {
+//                            println!("Dropping request for {}", &req.function);
                             self.stat.lock().unwrap().drop_req(1);
                         }
                         return;
@@ -255,7 +237,13 @@ impl Inner {
 
     }
 
-    // For a particular function, acquire an idle VM instance
+    fn check_concurrency(&self, req: &request::Request) -> bool {
+        let curr_concur = self.get_current_concurrency(&req);
+        curr_concur >= self.function_configs.get(&req.function).unwrap().concurrency_limit
+
+    }
+
+        // For a particular function, acquire an idle VM instance
     pub fn get_idle_vm(&self, req: &request::Request) -> Option<Vm> {
         match self.idle_functions.lock().unwrap().get_mut(&req.function) {
             Some(vms) => {
@@ -278,12 +266,12 @@ impl Inner {
                 let evict_mem: usize = self.function_configs.get(&func_name).unwrap().memory;
 
                 if evict_cpu >= req_cpu && evict_mem >= req_mem && idle_list.len() > 0 {
-                    println!("Found evictable VM of function {}", func_name);
+//                    println!("Found evictable VM of function {}", func_name);
                     return Some((idle_list.pop().unwrap(), evict_cpu, evict_mem));
                 }
             }
         }
-        println!("Couldn't find evictable vm that meets resources requirements");
+//        println!("Couldn't find evictable vm that meets resources requirements");
         None
 
     }
@@ -304,8 +292,25 @@ impl Inner {
     }
 
     pub fn evict_and_swap(&self, req: &request::Request, evict_vm: Vm) -> Vm {
+        let t0 = time::precise_time_ns();
+        let id = evict_vm.id;
         self.evict(evict_vm);
+        let t1 = time::precise_time_ns();
+        {
+            let mut stat = self.stat.lock().unwrap();
+            stat.log_eviction_timestamp(id, t0);
+            stat.log_eviction_timestamp(id, t1);
+        }
         self.launch_new_vm(req)
+    }
+
+    fn cpu_share(&self, mem: usize) -> u64 {
+        (mem / VM_SIZE_INCREMENT) as u64
+    }
+
+    fn vcpu_count(&self, mem: usize) -> u64 {
+        let count = math::round::ceil(mem as f64 / self.one_hyperthread_mem_size as f64, 0);
+        count as u64
     }
 
     pub fn launch_new_vm(&self, req: &request::Request) -> Vm {
@@ -319,6 +324,11 @@ impl Inner {
             load_dir = config.load_dir;
         }
 
+        let mem = config.memory;
+        let cpu_share = self.cpu_share(mem);
+        let vcpu_count = self.vcpu_count(mem);
+
+        self.stat.lock().unwrap().log_boot_timestamp(id, time::precise_time_ns());
         let app = VmAppConfig {
             kernel: self.kernel.clone(),
             //kernel: String::from("foo"),
@@ -331,7 +341,8 @@ impl Inner {
             notifier: self.notifier.try_clone().expect("Failed to clone notifier"),
             // we really want this to be a function of VPU and memory count, so that
             // cpu_share is proportional to the size of the function
-            cpu_share: config.vcpus,
+            cpu_share: cpu_share,
+            vcpu_count: vcpu_count,
             mem_size_mib: Some(config.memory),
             load_dir,
             dump_dir: None, // ignored by now
@@ -355,6 +366,7 @@ impl Inner {
 
     pub fn process_response(&self, response: (u32, String, Vec<u8>)) {
         let (id, function, response) = response;
+        self.stat.lock().unwrap().log_request_timestamp(id, time::precise_time_ns());
         println!("{}, {}: {}", id, function, String::from_utf8(response).unwrap());
 
         self.stat.lock().unwrap().complete_req(1);
@@ -372,7 +384,7 @@ impl Inner {
                 break;
             }
         }
-        println!("Function {}, running: {}, idle: {}", function, running_list.len(), idle_list.len());
+//        println!("Function {}, running: {}, idle: {}", function, running_list.len(), idle_list.len());
 
     }
 }

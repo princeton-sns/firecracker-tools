@@ -8,22 +8,26 @@ use std::fs::File;
 
 use super::request;
 use firerunner::pipe_pair::PipePair;
+use super::metrics::Metrics;
 
 pub struct RequestManager {
     listener: File, // read end of the pipe through which VM signals it is ready to receive requests.
     channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
+    stat: Arc<Mutex<Metrics>>,
     connections: BTreeMap<u32, JoinHandle<()>>,
     response_sender: Sender<(u32, String, Vec<u8>)>,
 }
 
 impl RequestManager {
     pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
+                stat: Arc<Mutex<Metrics>>,
                 response_sender: Sender<(u32, String, Vec<u8>)>,
                 listener: File) -> RequestManager
     {
         RequestManager {
             listener: listener,
             channels,
+            stat,
             connections: BTreeMap::new(),
             response_sender,
         }
@@ -37,6 +41,7 @@ impl RequestManager {
 //            println!("waiting for connection");
             self.listener.read_exact(&mut id_buf).expect("Failed to read from listener pipe");
             let id = u32::from_le_bytes(id_buf);
+            self.stat.lock().unwrap().log_boot_timestamp(id, time::precise_time_ns());
 
 //            println!("Connection from VM {}", &id);
 
@@ -98,6 +103,6 @@ impl<T: Read + Write> ConnectionManager<T> {
                 break;
             }
         }
-        println!("Connection Manager exit");
+//        println!("Connection Manager exit");
     }
 }
