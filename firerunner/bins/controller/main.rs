@@ -157,6 +157,7 @@ fn main() {
 
     while controller.check_running() {
         std::thread::sleep(std::time::Duration::from_secs(1));
+//        println!("Still waiting")
     }
 
     let workload_end = time::precise_time_ns();
@@ -184,7 +185,8 @@ fn main() {
         "end time": workload_end,
         "boot timestamps": controller.get_stat().boot_timestamp,
         "request/response timestamps": controller.get_stat().request_response_timestamp,
-        "eviction timestamps": controller.get_stat().eviction_timestamp
+        "eviction timestamps": controller.get_stat().eviction_timestamp,
+        "vm mem sizes": controller.get_stat().vm_mem_size
     });
 
 

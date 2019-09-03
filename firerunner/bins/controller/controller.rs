@@ -197,6 +197,8 @@ impl Inner {
 //                        println!("New VM: {:?}", new_vm);
                         self.stat.lock().unwrap()
                             .log_request_timestamp(new_vm.id, time::precise_time_ns());
+                        self.stat.lock().unwrap()
+                                .log_vm_mem_size(new_vm.id, new_vm.app.config.mem_size_mib.unwrap());
                         self.send_request(req, new_vm);
                     },
                     // Evict an idle VM running some other functions

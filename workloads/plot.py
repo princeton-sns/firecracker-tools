@@ -1,7 +1,10 @@
 import json
+import yaml
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+
+SMALLEST_VM = 128
 
 def list_to_tuple_list(l):
     if len(l) == 0:
@@ -27,7 +30,8 @@ class VM(object):
 
     def __str__(self):
         return "id: " + str(self.id) + " boot: " + str(self.boot) + \
-                " req_res: " + str(self.req_res) + " evict: " + str(self.evict)
+                " req_res: " + str(self.req_res) + " evict: " + str(self.evict) +\
+                " resource size: " + str(self.resource)
 
     def is_running(self, tsp):
 
@@ -38,35 +42,50 @@ class VM(object):
         return 0
 
 
-
 measurement_file = open(sys.argv[1], 'r')
 data = json.load(measurement_file)
+
+measurement_file.close()
 
 window_size = 8000000 #ns
 start_time = data['start time']
 end_time = data['end time']
 num_vm = len(data['boot timestamps'])
 
+#function_config_file = open(sys.argv[2], 'r')
+#config = yaml.load(function_config_file.read(), Loader=yaml.Loader)
+#function_config_file.close()
+# get mem size for each function
+#function_to_memsize = {}
+#for function in config:
+#    name = function['name']
+#    mem = function['memory']
+#    function_to_memsize[name] = mem
+#
+#print(function_to_memsize)
+
+
 vms = []
 for vm_id in range(3, 3+num_vm,1):
+    mem_size = data['vm mem sizes'][str(vm_id)]
     boot_tsp = data['boot timestamps'][str(vm_id)]
     req_res_tsp = data['request/response timestamps'][str(vm_id)]
+
     try:
         evict_tsp = data['eviction timestamps'][str(vm_id)]
     except:
         evict_tsp = []
 
-    vm = VM(vm_id, boot_tsp, req_res_tsp, evict_tsp, 1)
+    vm = VM(vm_id, boot_tsp, req_res_tsp, evict_tsp, mem_size/SMALLEST_VM)
     vms.append(vm)
 
-#for vm in vms:
-#    print(vm)
 
-resource_limit = data['total cpu'] # the maximum number of 128MB VMs that the cluster can support
+total_mem = data['total mem']
+resource_limit = int(total_mem/SMALLEST_VM) # the maximum number of 128MB VMs that the cluster can support
 
+print('cluster can support ' + str(resource_limit) + ' 128MB VMs')
 print("experiment lasted " + str((end_time - start_time) / 1000000) +"ms")
 print("booted a total of " + str(num_vm) + " VMs")
-
 
 count_running = []
 ws = start_time + window_size / 2 # sampling tick
@@ -83,8 +102,6 @@ while ws < end_time:
 utilization = np.array(count_running)
 utilization = utilization/resource_limit*100
 
-
-
 # plot
 x = np.linspace(0, (end_time - start_time )/1000000, len(utilization)  )
 
@@ -92,8 +109,9 @@ fig = plt.figure()
 fig.set_size_inches(8,5)
 plt.plot(x, utilization)
 plt.xlabel('time(ms)')
-plt.ylabel('Utilization')
+plt.ylabel('Utilization (%)')
 plt.title('Utilization')
 plt.legend()
+plt.savefig('test.png')
 
 plt.show()
