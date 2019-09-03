@@ -1,5 +1,6 @@
 use std::collections::btree_map::BTreeMap;
 
+#[derive(Clone)]
 pub struct Metrics {
     pub num_drop: u32,  // number of dropped requests
     pub num_complete: u32,  // number of requests completed

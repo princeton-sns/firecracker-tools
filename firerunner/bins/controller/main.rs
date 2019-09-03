@@ -126,7 +126,7 @@ fn main() {
                                                      kernel,
                                                      debug,
                                                      snapshot);
-    println!("{:?}", controller.get_cluster_info());
+    //println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();
 
@@ -156,6 +156,9 @@ fn main() {
 //    println!("All requests exhausted");
 
     while controller.check_running() {
+        let num_complete = controller.get_stat().num_complete;
+        let num_drop = controller.get_stat().num_drop;
+        println!("\n\n\nComplete: {}\tDropped: {}\tTotal: {}", num_complete, num_drop, num_complete + num_drop);
         std::thread::sleep(std::time::Duration::from_secs(1));
 //        println!("Still waiting")
     }
