@@ -1,0 +1,24 @@
+- name: "markdown-to-html"
+  mu: 10 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 10000 # ms
+- name: "ocr-img"
+  mu: 10 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 10000 # ms
+- name: "sentiment-analysis"
+  mu: 10 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 10000 # ms
+- name: "lorempy2"
+  mu: 10 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 10000 # ms
+- name: "loremjs"
+  mu: 10 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 10000 # ms
+- name: "autocomplete"
+  mu: 10 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 10000 # ms
