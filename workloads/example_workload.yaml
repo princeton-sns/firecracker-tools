@@ -4,5 +4,21 @@
   end_time: 5000 # ms
 - name: "lorempy2"
   mu: 2 
-  start_time: 5000
-  end_time: 10000
+  start_time: 0
+  end_time: 5000
+- name: "autocomplete"
+  mu: 2 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 5000 # ms
+- name: "ocr-img"
+  mu: 2 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 5000 # ms
+- name: "sentiment-analysis"
+  mu: 2 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 5000 # ms
+- name: "markdown-to-html"
+  mu: 2 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
+  start_time: 0 # ms
+  end_time: 5000 # ms
