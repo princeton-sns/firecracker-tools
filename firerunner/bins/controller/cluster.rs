@@ -9,7 +9,7 @@ const MEM_FILE: &str = "/proc/meminfo";     // meminfo file on linux
 const KB_IN_MB: usize = 1024;
 const MEM_4G: usize = 4096;  // in MB
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MachineInfo {
     id: String,
     total_cpu: u64,       // number of cores
@@ -19,7 +19,7 @@ pub struct MachineInfo {
     free_mem: usize,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Cluster {
     num_hosts: u32,     // number of physical hosts in the cluster
     host_list: Vec<MachineInfo>,       // host name to machine config mapping
