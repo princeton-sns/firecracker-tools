@@ -18,6 +18,7 @@ use firerunner::pipe_pair::PipePair;
 
 const MEM_4G: usize = 4096;  // in MB
 const VM_SIZE_INCREMENT: usize = 128; // in MB
+const CPU_SHARE_INCREMENT: usize = 64;
 // represent an VM from a management perspective
 // differs from runner::VmApp or VmAppConfig that represent an Vm from execution perspective
 #[derive(Debug)]
@@ -121,13 +122,13 @@ impl Controller {
     }
 
     // check if there's any running function
-    pub fn check_running(&self) -> bool {
-        for (_, run_list) in self.inner.running_functions.lock().unwrap().iter() {
-            if run_list.len() > 0 {
-                return true;
-            }
+    pub fn check_running(&self) -> u64{
+        let mut num_running: u64 = 0;
+        for (func_name, run_list) in self.inner.running_functions.lock().unwrap().iter() {
+            num_running = num_running + run_list.len() as u64;
+            //println!("Function {} still has {} VMs running", func_name, run_list.len());
         }
-        return false;
+        return num_running;
     }
 
     // kill all vms
@@ -156,17 +157,22 @@ impl Inner {
     // If not, push the vm the idle_function vector.
     fn send_request(&self, req: request::Request, vm: Vm) {
         let function_name = req.function.clone();
-        match vm.req_sender.send(req) {
-            Ok(_) => {
-                self.running_functions.lock().unwrap().get_mut(&function_name)
-                    .unwrap().push(vm);
-            },
-            Err(e) => {
-                println!("Request failed to send to vm: {:?}, error: {}", vm, e);
-                self.idle_functions.lock().unwrap().get_mut(&function_name)
-                    .unwrap().push(vm);
-            }
+        let request_sender = vm.req_sender.clone();
+        let vm_id = vm.id;
+
+        {
+            self.running_functions.lock().unwrap().get_mut(&function_name).unwrap().push(vm);
         }
+
+        if let Err(e) = request_sender.send(req) {
+            println!("Request failed to send to vm: {}, error: {}", vm_id, e);
+
+            let vm = self.find_and_remove_running_vm(&function_name, vm_id).unwrap();
+            let mut idle_tree = self.idle_functions.lock().unwrap();
+            let idle_list = idle_tree.get_mut(&function_name).unwrap();
+            idle_list.push(vm);
+        }
+
     }
 
 
@@ -307,7 +313,7 @@ impl Inner {
     }
 
     fn cpu_share(&self, mem: usize) -> u64 {
-        (mem / VM_SIZE_INCREMENT) as u64
+        ((mem / VM_SIZE_INCREMENT) * CPU_SHARE_INCREMENT) as u64
     }
 
     fn vcpu_count(&self, mem: usize) -> u64 {
@@ -365,6 +371,21 @@ impl Inner {
         }
     }
 
+    fn find_and_remove_running_vm(&self, function_name: &String, vm_id: u32) -> Option<Vm> {
+
+        let mut running_tree = self.running_functions.lock().unwrap();
+        let running_list = running_tree.get_mut(function_name).unwrap();
+
+        for (idx, vm) in running_list.iter().enumerate() {
+            if vm.id == vm_id {
+                let vm = running_list.remove(idx);
+                return Some(vm);
+            }
+        }
+
+        return None;
+
+    }
 
     pub fn process_response(&self, response: (u32, String, Vec<u8>)) {
         let (id, function, response) = response;
@@ -373,20 +394,23 @@ impl Inner {
 
         self.stat.lock().unwrap().complete_req(1);
 
-        let mut running_tree = self.running_functions.lock().unwrap();
-        let running_list = running_tree.get_mut(&function).unwrap();
-        let mut idle_tree = self.idle_functions.lock().unwrap();
-        let idle_list = idle_tree.get_mut(&function).unwrap();
 
-        // find the finished VM from the running list and move it to the idle list
-        for (idx, vm) in running_list.iter().enumerate() {
-            if vm.id == id {
-                let vm = running_list.remove(idx);
-                idle_list.push(vm);
-                break;
-            }
+        if let Some(vm) = self.find_and_remove_running_vm(&function, id) {
+            let mut idle_tree = self.idle_functions.lock().unwrap();
+            let idle_list = idle_tree.get_mut(&function).unwrap();
+            idle_list.push(vm);
+        } else {
+            panic!("results returned from a non-running VM (id: {})", id);
         }
-//        println!("Function {}, running: {}, idle: {}", function, running_list.len(), idle_list.len());
+
+//        {
+//            let mut running_tree = self.running_functions.lock().unwrap();
+//            let running_list = running_tree.get_mut(&function).unwrap();
+//            let mut idle_tree = self.idle_functions.lock().unwrap();
+//            let idle_list = idle_tree.get_mut(&function).unwrap();
+//
+//            println!("Function {}, running: {}, idle: {}", function, running_list.len(), idle_list.len());
+//        }
 
     }
 }

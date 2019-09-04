@@ -155,9 +155,16 @@ fn main() {
 
 //    println!("All requests exhausted");
 
-    while controller.check_running() {
+    let mut waiting_time = 0;
+    while controller.check_running() > 0 {
         std::thread::sleep(std::time::Duration::from_secs(1));
-//        println!("Still waiting")
+        let vm_running = controller.check_running();
+        waiting_time = waiting_time+1;
+        //println!("Still waiting for {} VMs after {} seconds", vm_running, waiting_time);
+
+//        if waiting_time > 60 && vm_running <= 2 {
+//            break;
+//        }
     }
 
     let workload_end = time::precise_time_ns();
