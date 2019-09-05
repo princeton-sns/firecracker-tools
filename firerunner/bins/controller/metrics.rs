@@ -3,7 +3,10 @@ use std::collections::btree_map::BTreeMap;
 #[derive(Clone)]
 pub struct Metrics {
     pub num_drop: u32,  // number of dropped requests
+    pub num_drop_resource: u32,
+    pub num_drop_concurrency: u32,
     pub num_complete: u32,  // number of requests completed
+    pub num_evict: u32, 
     pub vm_mem_size: BTreeMap<u32, usize>,
     pub boot_timestamp: BTreeMap<u32, Vec<u64>>, // key is vm_id, value is boot timestamp
     pub eviction_timestamp: BTreeMap<u32, Vec<u64>>,
@@ -14,7 +17,10 @@ impl Metrics {
     pub fn new() -> Metrics {
         Metrics {
             num_drop: 0,
+            num_drop_resource: 0,
+            num_drop_concurrency: 0,
             num_complete: 0,
+            num_evict: 0,
             boot_timestamp: Default::default(),
             vm_mem_size: Default::default(),
             eviction_timestamp: Default::default(),
@@ -26,8 +32,20 @@ impl Metrics {
         self.num_drop = self.num_drop + num;
     }
 
+    pub fn drop_req_resource(&mut self, num: u32) {
+        self.num_drop_resource = self.num_drop_resource + num;
+    }
+
+    pub fn drop_req_concurrency(&mut self, num: u32) {
+        self.num_drop_concurrency = self.num_drop_concurrency + num;
+    }
+
     pub fn complete_req(&mut self, num: u32) {
         self.num_complete = self.num_complete + num;
+    }
+
+    pub fn evict_vm(&mut self, num: u32) {
+        self.num_evict= self.num_evict+ num;
     }
 
     pub fn log_boot_timestamp(&mut self, vm_id: u32, tsp: u64) {
