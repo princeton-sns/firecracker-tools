@@ -108,6 +108,7 @@ fn main() {
         .expect("Function config file not found");
     let debug = cmd_arguments.is_present("debug");
     let snapshot = cmd_arguments.is_present("snapshot");
+    println!("snapshot is {}", snapshot);
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -171,12 +172,14 @@ fn main() {
 
     let total_time = (workload_end - workload_start) / 1_000_000; // in ms
     let num_complete = controller.get_stat().num_complete;
-    let num_drop = controller.get_stat().num_drop;
+    let num_drop_resource = controller.get_stat().num_drop_resource;
+    let num_drop_concurrency = controller.get_stat().num_drop_concurrency;
     let num_vm = controller.get_stat().boot_timestamp.len();
     let num_evict = controller.get_stat().eviction_timestamp.len();
 
     println!("{} requests completed", num_complete);
-    println!("{} requests dropped", num_drop);
+    println!("{} requests dropped due to resource exhaustion", num_drop_resource);
+    println!("{} requests dropped due to concurrency limit", num_drop_concurrency);
     println!("total time: {}ms", total_time);
     println!("throughput: {} req/sec", num_complete as f32 /((total_time as f32) /1000.));
     println!("Booted a total of {} VMs", num_vm);
