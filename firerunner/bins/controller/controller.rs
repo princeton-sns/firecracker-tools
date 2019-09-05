@@ -187,6 +187,7 @@ impl Inner {
             None => {
                 if self.check_concurrency(&req) {
 //                    println!("Dropping request for {}", &req.function);
+                    self.stat.lock().unwrap().drop_req_concurrency(1);
                     self.stat.lock().unwrap().drop_req(1);
                     return;
                 }
@@ -207,8 +208,9 @@ impl Inner {
                     // Evict an idle VM running some other functions
                     None => {
 //                        println!("No free resources, picking a VM to evict");
-                        if let Some((evict_vm, _, evict_mem)) = self.get_evictable_vm(&req) {
+                        if let Some((evict_vm, evict_mem)) = self.get_evictable_vm(&req) {
 
+                            self.stat.lock().unwrap().evict_vm(1);
                             let new_vm = self.evict_and_swap(&req, evict_vm);
 
                             self.cluster.free(0, evict_mem);
@@ -223,6 +225,7 @@ impl Inner {
                             self.send_request(req, new_vm);
                        } else {
 //                            println!("Dropping request for {}", &req.function);
+                            self.stat.lock().unwrap().drop_req_resource(1);
                             self.stat.lock().unwrap().drop_req(1);
                         }
                         return;
@@ -261,18 +264,17 @@ impl Inner {
         }
     }
 
-    pub fn get_evictable_vm(&mut self, req: &request::Request) -> Option<(Vm, u64, usize)> {
+    pub fn get_evictable_vm(&mut self, req: &request::Request) -> Option<(Vm, usize)> {
         let req_cpu: u64 = self.function_configs.get(&req.function).unwrap().vcpus;
         let req_mem: usize = self.function_configs.get(&req.function).unwrap().memory;
 
         for (func_name, idle_list) in self.idle_functions.iter_mut() {
             if func_name != &req.function {
-                let evict_cpu: u64 = self.function_configs.get(&func_name).unwrap().vcpus;
                 let evict_mem: usize = self.function_configs.get(&func_name).unwrap().memory;
 
-                if evict_cpu >= req_cpu && evict_mem >= req_mem && idle_list.len() > 0 {
+                if evict_mem >= req_mem && idle_list.len() > 0 {
 //                    println!("Found evictable VM of function {}", func_name);
-                    return Some((idle_list.pop().unwrap(), evict_cpu, evict_mem));
+                    return Some((idle_list.pop().unwrap(), evict_mem));
                 }
             }
         }
