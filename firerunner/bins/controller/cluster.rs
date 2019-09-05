@@ -57,6 +57,7 @@ impl Cluster{
         }
 
         let mem = mem / KB_IN_MB - MEM_4G;
+        let mem: usize = 1280;
 
         let mc = MachineInfo{
             id: String::from("1"),

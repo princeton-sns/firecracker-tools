@@ -68,8 +68,10 @@ impl Controller {
         }
 
         let my_cluster = cluster::Cluster::new();
-        let one_hyperthread_mem_size: usize = (my_cluster.total_mem - MEM_4G) /
-                                               my_cluster.total_cpu as usize;
+//        let one_hyperthread_mem_size: usize = (my_cluster.total_mem - MEM_4G) /
+//                                               my_cluster.total_cpu as usize;
+
+        let one_hyperthread_mem_size: usize = 1024;
 
         Controller {
             inner: Arc::new(Mutex::new(Inner {
