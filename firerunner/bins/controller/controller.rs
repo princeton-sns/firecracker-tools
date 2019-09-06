@@ -181,7 +181,7 @@ impl Inner {
         match self.get_idle_vm(&req) {
             Some(vm) => {
 //                println!("Found idle VM for {}", req.function);
-                self.stat.lock().unwrap().log_request_timestamp(vm.id, time::precise_time_ns());
+//                self.stat.lock().unwrap().log_request_timestamp(vm.id, time::precise_time_ns());
                 self.send_request(req, vm);
             },
             None => {
@@ -201,8 +201,8 @@ impl Inner {
 
                         let new_vm = self.launch_new_vm(&req);
 //                        println!("New VM: {:?}", new_vm);
-                        self.stat.lock().unwrap()
-                            .log_request_timestamp(new_vm.id, time::precise_time_ns());
+//                        self.stat.lock().unwrap()
+//                            .log_request_timestamp(new_vm.id, time::precise_time_ns());
                         self.send_request(req, new_vm);
                     },
                     // Evict an idle VM running some other functions
@@ -220,8 +220,8 @@ impl Inner {
                             self.cluster.allocate(0, req_mem);
 
 //                            println!("new vm {:?}", &new_vm);
-                            self.stat.lock().unwrap()
-                                .log_request_timestamp(new_vm.id, time::precise_time_ns());
+//                            self.stat.lock().unwrap()
+//                                .log_request_timestamp(new_vm.id, time::precise_time_ns());
                             self.send_request(req, new_vm);
                        } else {
 //                            println!("Dropping request for {}", &req.function);
@@ -391,7 +391,7 @@ impl Inner {
 
     pub fn process_response(&mut self, response: (u32, String, Vec<u8>)) {
         let (id, function, response) = response;
-        self.stat.lock().unwrap().log_request_timestamp(id, time::precise_time_ns());
+//        self.stat.lock().unwrap().log_request_timestamp(id, time::precise_time_ns());
         println!("{}, {}: {}", id, function, String::from_utf8(response).unwrap());
 
         self.stat.lock().unwrap().complete_req(1);

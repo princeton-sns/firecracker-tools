@@ -9,6 +9,7 @@ use std::fs::File;
 use super::request;
 use firerunner::pipe_pair::PipePair;
 use super::metrics::Metrics;
+use time::precise_time_ns;
 
 pub struct RequestManager {
     listener: File, // read end of the pipe through which VM signals it is ready to receive requests.
@@ -49,6 +50,7 @@ impl RequestManager {
                     self.channels.lock().expect("poisoned lock").remove(&id) {
 
                 let response_sender = self.response_sender.clone();
+                let stat = self.stat.clone();
                 self.connections.insert(id, thread::spawn(move || {
                     let mut conn_mgr = ConnectionManager {
                         id,
@@ -56,7 +58,7 @@ impl RequestManager {
                         request_receiver,
                         response_sender,
                         connection,
-                        state: self.stat.clone()
+                        stat,
                     };
                     conn_mgr.handle_connection();
                 }));
@@ -80,7 +82,7 @@ struct ConnectionManager<T>{
 
 impl<T: Read + Write> ConnectionManager<T> {
 
-    fn handle_request(&self, connection: &mut T, request: request::Request) -> std::io::Result<Vec<u8>> {
+    fn handle_request(connection: &mut T, request: request::Request) -> std::io::Result<Vec<u8>> {
 
         let mut request = serde_json::to_vec(&request).unwrap();
         request.push(0xa); // newline
@@ -99,8 +101,10 @@ impl<T: Read + Write> ConnectionManager<T> {
 
     fn handle_connection(&mut self) {
         for request in self.request_receiver.iter() {
-            if let Ok(response) = self.handle_request(&mut self.connection, request) {
+            self.stat.lock().unwrap().log_request_timestamp(self.id,precise_time_ns());
+            if let Ok(response) = Self::handle_request(&mut self.connection, request) {
                 self.response_sender.send((self.id, self.function.clone(), response)).unwrap();
+                self.stat.lock().unwrap().log_request_timestamp(self.id,precise_time_ns());
             } else {
                 println!("Error response from VM");
                 break;
