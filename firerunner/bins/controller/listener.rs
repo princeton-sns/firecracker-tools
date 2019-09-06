@@ -56,6 +56,7 @@ impl RequestManager {
                         request_receiver,
                         response_sender,
                         connection,
+                        state: self.stat.clone()
                     };
                     conn_mgr.handle_connection();
                 }));
@@ -74,11 +75,13 @@ struct ConnectionManager<T>{
     request_receiver: Receiver<request::Request>,
     response_sender: Sender<(u32, String, Vec<u8>)>,
     connection: T,
+    stat: Arc<Mutex<Metrics>>,
 }
 
 impl<T: Read + Write> ConnectionManager<T> {
 
-    fn handle_request(connection: &mut T, request: request::Request) -> std::io::Result<Vec<u8>> {
+    fn handle_request(&self, connection: &mut T, request: request::Request) -> std::io::Result<Vec<u8>> {
+
         let mut request = serde_json::to_vec(&request).unwrap();
         request.push(0xa); // newline
         connection.write_all(request.as_slice())?;
@@ -96,7 +99,7 @@ impl<T: Read + Write> ConnectionManager<T> {
 
     fn handle_connection(&mut self) {
         for request in self.request_receiver.iter() {
-            if let Ok(response) = Self::handle_request(&mut self.connection, request) {
+            if let Ok(response) = self.handle_request(&mut self.connection, request) {
                 self.response_sender.send((self.id, self.function.clone(), response)).unwrap();
             } else {
                 println!("Error response from VM");

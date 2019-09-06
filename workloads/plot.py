@@ -47,7 +47,7 @@ data = json.load(measurement_file)
 
 measurement_file.close()
 
-window_size = 8000000 #ns
+window_size = 3000000000 #ns
 start_time = data['start time']
 end_time = data['end time']
 num_vm = len(data['boot timestamps'])
@@ -66,25 +66,54 @@ num_vm = len(data['boot timestamps'])
 
 
 vms = []
+all_req_res = []
+all_eviction_tsp = []
+all_boot_tsp = []
 for vm_id in range(3, 3+num_vm,1):
     mem_size = data['vm mem sizes'][str(vm_id)]
     boot_tsp = data['boot timestamps'][str(vm_id)]
     req_res_tsp = data['request/response timestamps'][str(vm_id)]
+    all_req_res = all_req_res+req_res_tsp
+    all_boot_tsp = all_boot_tsp + boot_tsp
 
     try:
         evict_tsp = data['eviction timestamps'][str(vm_id)]
+        all_eviction_tsp = all_eviction_tsp + evict_tsp
     except:
         evict_tsp = []
 
     vm = VM(vm_id, boot_tsp, req_res_tsp, evict_tsp, mem_size/SMALLEST_VM)
     vms.append(vm)
 
+all_runtime = [all_req_res[i+1] - all_req_res[i] for i in range(0, len(all_req_res)-1, 2)]
+all_runtime = np.array(all_runtime)/1000000
+
+all_boot = [all_boot_tsp[i+1] - all_boot_tsp[i] for i in range(0, len(all_boot_tsp)-1, 2)]
+all_boot= np.array(all_boot)/1000000
+
+all_eviction= [all_eviction_tsp[i+1] - all_eviction_tsp[i] for i in range(0, len(all_eviction_tsp)-1, 2)]
+all_eviction= np.array(all_eviction)/1000000
+
+
+total_runtime = np.sum(all_runtime)
+total_experiment_time = (end_time - start_time) / 1000000
+total_eviction_time = np.sum(all_eviction)
+total_boot_time = np.sum(all_boot)
+print("total experiment time: {}".format(total_experiment_time))
+print("total runtime: {}".format(total_runtime))
+print("total eviction time: {}".format(total_eviction_time))
+print("total boot time: {}".format(total_boot_time))
+print("type 1 utilization: {}".format(total_runtime * 256/(total_experiment_time*1024)))
+print("type 2 utilization: {}".format(total_runtime/(total_eviction_time + total_boot_time)))
+
+
+
 
 total_mem = data['total mem']
 resource_limit = int(total_mem/SMALLEST_VM) # the maximum number of 128MB VMs that the cluster can support
 
 print('cluster can support ' + str(resource_limit) + ' 128MB VMs')
-print("experiment lasted " + str((end_time - start_time) / 1000000) +"ms")
+print("experiment lasted " + str(total_experiment_time) +"ms")
 print("booted a total of " + str(num_vm) + " VMs")
 
 count_running = []
