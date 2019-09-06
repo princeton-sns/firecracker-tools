@@ -30,33 +30,37 @@ pub struct Cluster {
 }
 
 impl Cluster{
-    pub fn new() -> Cluster {
-        Cluster::single_machine_cluster()
+    pub fn new(mem_size: usize) -> Cluster {
+        Cluster::single_machine_cluster(mem_size)
     }
 
     // Currently we only support one-machine clusters.
     // So this function acquires physical resource information from the host
     // on which the controller is running which is just one machine.
-    fn single_machine_cluster() -> Cluster {
+    fn single_machine_cluster(mem_size: usize) -> Cluster {
         let cpus = num_cpus::get() as u64;     // logical CPUs
 
-        let mut mem: usize = 0;
+        let mut mem = mem_size;
 
-        let memfile = File::open(MEM_FILE).expect("Couldn't open /proc/meminfo");
-        for line in BufReader::new(memfile).lines(){
-            match line {
-                Ok(c) => {
-                    let parts: Vec<&str> = c.split(':').map(|s| s.trim()).collect();
-                    if parts[0] == "MemTotal" {
-                        mem = parts[1].split(' ').collect::<Vec<&str>>()[0].parse::<usize>().unwrap();
-                        break;
-                    }
-                },
-                Err(e) => println!("Reading meminfo file error: {:?}", e)
+        if mem_size == 0 {
+
+            let memfile = File::open(MEM_FILE).expect("Couldn't open /proc/meminfo");
+            for line in BufReader::new(memfile).lines(){
+                match line {
+                    Ok(c) => {
+                        let parts: Vec<&str> = c.split(':').map(|s| s.trim()).collect();
+                        if parts[0] == "MemTotal" {
+                            mem = parts[1].split(' ').collect::<Vec<&str>>()[0]
+                                          .parse::<usize>().unwrap();
+                            break;
+                        }
+                    },
+                    Err(e) => println!("Reading meminfo file error: {:?}", e)
+                }
             }
-        }
 
-        let mem = mem / KB_IN_MB - MEM_4G;
+            mem = mem / KB_IN_MB - MEM_4G;
+        }
 
         let mc = MachineInfo{
             id: String::from("1"),

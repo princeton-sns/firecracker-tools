@@ -54,7 +54,8 @@ pub struct Controller {
 
 impl Controller {
     pub fn new(function_configs: config::Configuration, seccomp_level: u32,
-               cmd_line: String, kernel: String, debug: bool, snapshot: bool) -> Controller {
+               cmd_line: String, kernel: String, debug: bool,
+               snapshot: bool, mem_size: usize) -> Controller {
 
         let (listener, notifier) = nix::unistd::pipe().expect("Failed to create a pipe");
 
@@ -67,9 +68,13 @@ impl Controller {
             idle_functions.insert(f.clone(), Vec::new());
         }
 
-        let my_cluster = cluster::Cluster::new();
-        let one_hyperthread_mem_size: usize = (my_cluster.total_mem - MEM_4G) /
-                                               my_cluster.total_cpu as usize;
+        let my_cluster = cluster::Cluster::new(mem_size);
+
+        let mut one_hyperthread_mem_size: usize = 1024;
+
+        if mem_size == 0 {
+            one_hyperthread_mem_size = my_cluster.total_mem / my_cluster.total_cpu as usize;
+        }
 
         Controller {
             inner: Arc::new(Mutex::new(Inner {

@@ -96,6 +96,15 @@ fn main() {
                 .required(false)
                 .help("Boot VMs from snapshots")
         )
+        .arg(
+            Arg::with_name("total memory capacity")
+                .long("mem_size")
+                .value_name("MEM_SIZE")
+                .takes_value(true)
+                .required(false)
+                .default_value("0")
+                .help("Total memory capacity of the cluster")
+        )
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
@@ -108,7 +117,8 @@ fn main() {
         .expect("Function config file not found");
     let debug = cmd_arguments.is_present("debug");
     let snapshot = cmd_arguments.is_present("snapshot");
-    println!("snapshot is {}", snapshot);
+    let mem_size: usize = cmd_arguments.value_of("total memory capacity").unwrap()
+                                       .parse::<usize>().unwrap();
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -126,7 +136,8 @@ fn main() {
                                                      cmd_line,
                                                      kernel,
                                                      debug,
-                                                     snapshot);
+                                                     snapshot,
+                                                     mem_size);
     println!("{:?}", controller.get_cluster_info());
 
     controller.ignite();
@@ -187,6 +198,7 @@ fn main() {
 
     // Output time measurement as a json string
     let res = json!({
+        "snapshot": snapshot,
         "total cpu": controller.get_cluster_info().total_cpu,
         "total mem": controller.get_cluster_info().total_mem,
         "app config file": cmd_arguments.value_of("function config file").unwrap(),
@@ -196,7 +208,12 @@ fn main() {
         "boot timestamps": controller.get_stat().boot_timestamp,
         "request/response timestamps": controller.get_stat().request_response_timestamp,
         "eviction timestamps": controller.get_stat().eviction_timestamp,
-        "vm mem sizes": controller.get_stat().vm_mem_size
+        "vm mem sizes": controller.get_stat().vm_mem_size,
+        "drop requests (resource)": controller.get_stat().num_drop_resource,
+        "drop requests (concurrency)": controller.get_stat().num_drop_concurrency,
+        "number of evictions": num_evict,
+        "number of completed requests": num_complete,
+        "cumulative throughput": num_complete as f32 /((total_time as f32) /1000.)
     });
 
 
