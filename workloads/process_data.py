@@ -47,7 +47,6 @@ data = json.load(measurement_file)
 
 measurement_file.close()
 
-window_size = 3000000000 #ns
 start_time = data['start time']
 end_time = data['end time']
 num_vm = len(data['boot timestamps'])
@@ -65,6 +64,7 @@ num_vm = len(data['boot timestamps'])
 #print(function_to_memsize)
 
 
+# calculate high-level aggregate data
 vms = []
 all_req_res = []
 all_eviction_tsp = []
@@ -99,24 +99,31 @@ total_runtime = np.sum(all_runtime)
 total_experiment_time = (end_time - start_time) / 1000000
 total_eviction_time = np.sum(all_eviction)
 total_boot_time = np.sum(all_boot)
+total_mem = data['total mem']
+resource_limit = int(total_mem/SMALLEST_VM) # the maximum number of 128MB VMs that the cluster can support
+num_drop_res = data['drop requests (resource)']
+num_drop_concur = data['drop requests (concurrency)']
+
+print("booted a total of " + str(num_vm) + " VMs")
 print("total experiment time: {}".format(total_experiment_time))
 print("total runtime: {}".format(total_runtime))
 print("total eviction time: {}".format(total_eviction_time))
 print("total boot time: {}".format(total_boot_time))
 print("type 1 utilization: {}".format(total_runtime * 256/(total_experiment_time*1024)))
-print("type 2 utilization: {}".format(total_runtime/(total_eviction_time + total_boot_time)))
+print("type 2 utilization: {}".format(total_runtime/(total_runtime + total_eviction_time + total_boot_time)))
 
-
-
-
-total_mem = data['total mem']
-resource_limit = int(total_mem/SMALLEST_VM) # the maximum number of 128MB VMs that the cluster can support
+print('number of completed requests: {}'.format(data['number of completed requests']))
+print('number of dropped requests (resource exhaustion): {}'.format(num_drop_res))
+print('number of dropped requests (concurrency limit): {}'.format(num_drop_concur))
+print('number of evictions: {}'.format(data['number of evictions']))
+print('cumulative throughput: {}'.format(data['cumulative throughput']))
 
 print('cluster can support ' + str(resource_limit) + ' 128MB VMs')
-print("experiment lasted " + str(total_experiment_time) +"ms")
-print("booted a total of " + str(num_vm) + " VMs")
 
+
+# calculate utilization over the timespan of the experiment
 count_running = []
+window_size = 3000000000 #ns
 ws = start_time + window_size / 2 # sampling tick
 i = 0
 while ws < end_time:
