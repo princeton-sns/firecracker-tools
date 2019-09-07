@@ -3,8 +3,10 @@ import yaml
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+np.set_printoptions(threshold=sys.maxsize)
 
 SMALLEST_VM = 128
+NS2MS = 1000000
 
 def list_to_tuple_list(l):
     if len(l) == 0:
@@ -78,6 +80,9 @@ class VM(object):
 
     def evict_time(self):
         """Return the total amount of time that this VM spent in eviction"""
+        if self.evict == []:
+            return 0
+
         return self.evict[0][1] - self.evict[0][0]
     
     def idle_time(self):
@@ -88,19 +93,28 @@ class VM(object):
         """Return the total amount of time that VM is up"""
         if self.evict == []:
             return end_time - self.boot[0][1]
-        else:
-            return self.evict[0][0] - self.boot[0][1]
+
+        return self.evict[0][0] - self.boot[0][1]
 
     def uptimestamp(self):
         """Return the launch finish timestamp and shutdown start timestamp of this VM in a tuple"""
+        if self.evict == []:
+            return (self.boot[0][1], end_time)
+
         return (self.boot[0][1], self.evict[0][0])
 
     def lifetime(self):
         """Return the total amount of time between start VM command and eviction finishes"""
+        if self.evict == []:
+            return end_time - self.boot[0][0]
+
         return self.evict[0][1] - self.boot[0][0]
 
     def lifetimestamp(self):
         """Return the launch start timestamp and shutdown finish timestamp of this VM in a tuple"""
+        if self.evict == []:
+            return (self.boot[0][0], end_time)
+
         return (self.boot[0][0], self.evict[0][1])
 
     def runtime_in_window(self, window):
@@ -124,9 +138,11 @@ data = json.load(measurement_file)
 
 measurement_file.close()
 
-start_time = data['start time']
-end_time = data['end time']
+start_time = data['start time']/NS2MS
+end_time = data['end time']/NS2MS
 num_vm = len(data['boot timestamps'])
+total_mem = data['total mem']
+resource_limit = int(total_mem/SMALLEST_VM) # the maximum number of 128MB VMs that the cluster can support
 
 #function_config_file = open(sys.argv[2], 'r')
 #config = yaml.load(function_config_file.read(), Loader=yaml.Loader)
@@ -140,6 +156,9 @@ num_vm = len(data['boot timestamps'])
 #
 #print(function_to_memsize)
 
+# scheduler latency
+schedule_latency = np.array(data['request schedule latency'])
+schedule_latency = schedule_latency / NS2MS
 
 # calculate high-level aggregate data
 vms = []
@@ -148,61 +167,76 @@ all_eviction_tsp = []
 all_boot_tsp = []
 for vm_id in range(3, 3+num_vm,1):
     mem_size = data['vm mem sizes'][str(vm_id)]
-    boot_tsp = data['boot timestamps'][str(vm_id)]
-    req_res_tsp = data['request/response timestamps'][str(vm_id)]
+    boot_tsp = [l/NS2MS for l in data['boot timestamps'][str(vm_id)]]
+    req_res_tsp = [l/NS2MS for l in data['request/response timestamps'][str(vm_id)]]
     all_req_res = all_req_res+req_res_tsp
     all_boot_tsp = all_boot_tsp + boot_tsp
 
     try:
-        evict_tsp = data['eviction timestamps'][str(vm_id)]
+        evict_tsp = [l/NS2MS for l in data['eviction timestamps'][str(vm_id)]]
         all_eviction_tsp = all_eviction_tsp + evict_tsp
     except:
         evict_tsp = []
 
-    vm = VM(vm_id, boot_tsp, req_res_tsp, evict_tsp, mem_size/SMALLEST_VM)
+    vm = VM(vm_id, boot_tsp, req_res_tsp, evict_tsp, mem_size)
     vms.append(vm)
 
-all_runtime = [all_req_res[i+1] - all_req_res[i] for i in range(0, len(all_req_res)-1, 2)]
-all_runtime = np.array(all_runtime)/1000000
 
-all_boot = [all_boot_tsp[i+1] - all_boot_tsp[i] for i in range(0, len(all_boot_tsp)-1, 2)]
-all_boot= np.array(all_boot)/1000000
+total_idle_time = 0
+total_boot_time = 0
+total_eviction_time = 0
+total_runtime = 0
+total_runtimeMB = 0
+total_idle_timeMB = 0
+total_eviction_timeMB = 0
+total_boot_timeMB = 0
 
-all_eviction= [all_eviction_tsp[i+1] - all_eviction_tsp[i] for i in range(0, len(all_eviction_tsp)-1, 2)]
-all_eviction= np.array(all_eviction)/1000000
+for vm in vms:
+    total_idle_time += vm.idle_time()
+    total_idle_timeMB += vm.idle_time() * vm.resource
+    total_boot_time += vm.boot_time()
+    total_boot_timeMB += vm.boot_time() * vm.resource
+    total_eviction_time += vm.evict_time()
+    total_eviction_timeMB += vm.evict_time() * vm.resource
+    total_runtime += vm.runtime()
+    total_runtimeMB += vm.runtime() * vm.resource
 
+#    print("vm {}, uptime: {}, runtime: {}, idle time: {}, boot time: {}, evict time: {}"\
+#            .format(vm.id,\
+#                vm.uptime()/1000000,\
+#                vm.runtime()/1000000,
+#                vm.idle_time()/1000000,\
+#                vm.boot_time()/1000000,\
+#                vm.evict_time()/1000000))
 
-total_runtime = np.sum(all_runtime)
-total_experiment_time = (end_time - start_time) / 1000000
-total_eviction_time = np.sum(all_eviction)
-total_boot_time = np.sum(all_boot)
-total_mem = data['total mem']
-resource_limit = int(total_mem/SMALLEST_VM) # the maximum number of 128MB VMs that the cluster can support
-num_drop_res = data['drop requests (resource)']
-num_drop_concur = data['drop requests (concurrency)']
+total_time = total_runtime + total_idle_time + total_boot_time + total_eviction_time
+total_experiment_duration = (end_time - start_time)
 
+print("cluster size: {}MB".format(total_mem))
+print('cluster can support ' + str(resource_limit) + ' 128MB VMs')
 print("booted a total of " + str(num_vm) + " VMs")
-print("total experiment time: {}".format(total_experiment_time))
-print("total runtime: {}".format(total_runtime))
-print("total eviction time: {}".format(total_eviction_time))
-print("total boot time: {}".format(total_boot_time))
-print("type 1 utilization: {}".format(total_runtime * 256/(total_experiment_time*1024)))
-print("type 2 utilization: {}".format(total_runtime/(total_runtime + total_eviction_time + total_boot_time)))
-
 print('number of completed requests: {}'.format(data['number of completed requests']))
-print('number of dropped requests (resource exhaustion): {}'.format(num_drop_res))
-print('number of dropped requests (concurrency limit): {}'.format(num_drop_concur))
+print('number of dropped requests (resource exhaustion): {}'.format(data['drop requests (resource)']))
+print('number of dropped requests (concurrency limit): {}'.format(data['drop requests (concurrency)']))
 print('number of evictions: {}'.format(data['number of evictions']))
 print('cumulative throughput: {}'.format(data['cumulative throughput']))
+print("experiment duration: {}ms".format(int(total_experiment_duration)))
+print("total time (spent by all VMs): {}ms".format(int(total_time)))
+print("total runtime time: {}ms".format(int(total_runtime)))
+print("total idle time: {}ms".format(int(total_idle_time)))
+print("total boot time: {}ms".format(int(total_boot_time)))
+print("total eviction time: {}ms".format(int(total_eviction_time)))
+#print("total runtimeMB (ms-MB): {}ms-MB".format(int(total_runtimeMB)))
+print("type 1 utilization: {}".format(total_runtimeMB/(total_experiment_duration*total_mem)))
+print("type 2 utilization: {}".format(total_runtimeMB/(total_runtimeMB + total_eviction_timeMB + total_boot_timeMB)))
 
-print('cluster can support ' + str(resource_limit) + ' 128MB VMs')
+print("average scheduling latency: {}ms".format(np.mean(schedule_latency)))
 
 
 # calculate utilization over the timespan of the experiment
 count_running = []
 runtimemb_all = []
-window_size = 500 #ms
-window_size = window_size * 1000000
+window_size = 5000 #ms
 
 wt = start_time + window_size / 2
 while wt < end_time:
@@ -210,11 +244,9 @@ while wt < end_time:
     running = 0
     runtimemb = 0
     for vm in vms:
-        running = running + vm.is_running(wt)
         runtimemb = runtimemb + vm.runtime_in_window(window) * vm.resource
 
-    count_running.append(running)
-    runtimemb_all.append(runtimemb/(window_size*resource_limit))
+    runtimemb_all.append(runtimemb/(window_size*total_mem))
 
     wt = wt + window_size
 
@@ -223,7 +255,7 @@ while wt < end_time:
 utilization = np.array(runtimemb_all) * 100
 
 # plot
-x = np.linspace(0, (end_time - start_time )/1000000, len(utilization)  )
+x = np.linspace(0, (end_time - start_time ), len(utilization)  )
 
 fig = plt.figure()
 fig.set_size_inches(8,5)
@@ -235,3 +267,4 @@ plt.legend()
 plt.savefig('test.png')
 
 plt.show()
+
