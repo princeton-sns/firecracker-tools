@@ -16,7 +16,30 @@ def list_to_tuple_list(l):
     return [(l[i], l[i+1]) for i in range(0,len(l),2)]
 
 def in_tuple_range(tsp, tuple_range):
+    """Return whether a timestamp falls within a time range
+
+    tsp -- timestamp
+    tuple_range -- a tuple of (start timestamp, end timestamp)
+    """
     return tsp>=tuple_range[0] and tsp<=tuple_range[1]
+
+def overlap(window, time_range):
+    """Return the amount of overlap time between 2 time ranges
+
+    0 if all of time_range precedes window
+    -1 if all of time_range follows window
+    overlap amount otherwise
+    """
+    if time_range[1] <= window[0]:
+        return 0
+
+    if time_range[0] >= window[1]:
+        return -1
+
+    l = [time_range[0], time_range[1], window[0], window[1]]
+    l.sort()
+
+    return l[2] - l[1]
 
 class VM(object):
     def __init__(self, id, boot_tsp, req_res_tsp, evict_tsp, resource):
@@ -40,6 +63,60 @@ class VM(object):
                 return self.resource
 
         return 0
+
+    def boot_time(self):
+        """Return the total amount of time that this VM spent in booting"""
+        return self.boot[0][1] - self.boot[0][0]
+
+    def runtime(self):
+        """Return the total amount of time that this VM spent running app code"""
+        runtime = 0
+        for r in self.req_res:
+            runtime = runtime + (r[1] - r[0])
+
+        return runtime
+
+    def evict_time(self):
+        """Return the total amount of time that this VM spent in eviction"""
+        return self.evict[0][1] - self.evict[0][0]
+    
+    def idle_time(self):
+        """Return the total amount of time that this VM is up but not running app code"""
+        return self.uptime() - self.runtime()
+
+    def uptime(self):
+        """Return the total amount of time that VM is up"""
+        if self.evict == []:
+            return end_time - self.boot[0][1]
+        else:
+            return self.evict[0][0] - self.boot[0][1]
+
+    def uptimestamp(self):
+        """Return the launch finish timestamp and shutdown start timestamp of this VM in a tuple"""
+        return (self.boot[0][1], self.evict[0][0])
+
+    def lifetime(self):
+        """Return the total amount of time between start VM command and eviction finishes"""
+        return self.evict[0][1] - self.boot[0][0]
+
+    def lifetimestamp(self):
+        """Return the launch start timestamp and shutdown finish timestamp of this VM in a tuple"""
+        return (self.boot[0][0], self.evict[0][1])
+
+    def runtime_in_window(self, window):
+        """Return the amount of time within a window that this VM spent running app code
+
+        windown -- a tuple representing a window
+        """
+        runtime = 0
+        for r in self.req_res:
+            ol = overlap(window, r)
+            if ol == -1:
+                break
+            runtime = runtime + ol
+
+        return runtime
+
 
 
 measurement_file = open(sys.argv[1], 'r')
@@ -123,20 +200,27 @@ print('cluster can support ' + str(resource_limit) + ' 128MB VMs')
 
 # calculate utilization over the timespan of the experiment
 count_running = []
-window_size = 3000000000 #ns
-ws = start_time + window_size / 2 # sampling tick
-i = 0
-while ws < end_time:
+runtimemb_all = []
+window_size = 500 #ms
+window_size = window_size * 1000000
+
+wt = start_time + window_size / 2
+while wt < end_time:
+    window = (wt - window_size / 2, wt + window_size / 2)
     running = 0
+    runtimemb = 0
     for vm in vms:
-        running = running + vm.is_running(ws)
+        running = running + vm.is_running(wt)
+        runtimemb = runtimemb + vm.runtime_in_window(window) * vm.resource
 
     count_running.append(running)
+    runtimemb_all.append(runtimemb/(window_size*resource_limit))
 
-    ws = ws + window_size
+    wt = wt + window_size
 
-utilization = np.array(count_running)
-utilization = utilization/resource_limit*100
+#utilization = np.array(count_running)
+#utilization = utilization/resource_limit*100
+utilization = np.array(runtimemb_all) * 100
 
 # plot
 x = np.linspace(0, (end_time - start_time )/1000000, len(utilization)  )
