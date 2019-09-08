@@ -160,7 +160,7 @@ resource_limit = int(total_mem/SMALLEST_VM) # the maximum number of 128MB VMs th
 schedule_latency = np.array(data['request schedule latency'])
 schedule_latency = schedule_latency / NS2MS
 
-# calculate high-level aggregate data
+# calculate high-level aggregate metrics
 vms = []
 all_req_res = []
 all_eviction_tsp = []
@@ -219,24 +219,25 @@ print('number of completed requests: {}'.format(data['number of completed reques
 print('number of dropped requests (resource exhaustion): {}'.format(data['drop requests (resource)']))
 print('number of dropped requests (concurrency limit): {}'.format(data['drop requests (concurrency)']))
 print('number of evictions: {}'.format(data['number of evictions']))
-print('cumulative throughput: {}'.format(data['cumulative throughput']))
-print("experiment duration: {}ms".format(int(total_experiment_duration)))
-print("total time (spent by all VMs): {}ms".format(int(total_time)))
-print("total runtime time: {}ms".format(int(total_runtime)))
-print("total idle time: {}ms".format(int(total_idle_time)))
-print("total boot time: {}ms".format(int(total_boot_time)))
-print("total eviction time: {}ms".format(int(total_eviction_time)))
+print('cumulative throughput: {0:.2f}'.format(data['cumulative throughput']))
+print("experiment duration: {0:.2f}ms".format(total_experiment_duration))
+print("total time (spent by all VMs): {0:.2f}ms".format(total_time))
+print("total runtime time: {0:.2f}ms".format(total_runtime))
+print("total idle time: {0:.2f}ms".format(total_idle_time))
+print("total boot time: {0:.2f}ms".format(total_boot_time))
+print("total eviction time: {0:.2f}ms".format(total_eviction_time))
 #print("total runtimeMB (ms-MB): {}ms-MB".format(int(total_runtimeMB)))
-print("type 1 utilization: {}".format(total_runtimeMB/(total_experiment_duration*total_mem)))
-print("type 2 utilization: {}".format(total_runtimeMB/(total_runtimeMB + total_eviction_timeMB + total_boot_timeMB)))
+print("type 1 utilization: {0:.2f}%".format(100*total_runtimeMB/(total_experiment_duration*total_mem)))
+print("type 2 utilization: {0:.2f}%".format(100*total_runtimeMB/(total_runtimeMB + total_eviction_timeMB + total_boot_timeMB)))
 
-print("average scheduling latency: {}ms".format(np.mean(schedule_latency)))
+print("average scheduling latency: {0:.2f}ms".format(np.mean(schedule_latency)))
 
 
 # calculate utilization over the timespan of the experiment
-count_running = []
+utilization1 = []
+utilization2 = []
 runtimemb_all = []
-window_size = 5000 #ms
+window_size = 6000 #ms
 
 wt = start_time + window_size / 2
 while wt < end_time:
@@ -246,20 +247,18 @@ while wt < end_time:
     for vm in vms:
         runtimemb = runtimemb + vm.runtime_in_window(window) * vm.resource
 
-    runtimemb_all.append(runtimemb/(window_size*total_mem))
+    utilization1.append(runtimemb/(window_size*total_mem))
 
     wt = wt + window_size
 
-#utilization = np.array(count_running)
-#utilization = utilization/resource_limit*100
-utilization = np.array(runtimemb_all) * 100
+utilization1 = np.array(utilization1) * 100
 
 # plot
-x = np.linspace(0, (end_time - start_time ), len(utilization)  )
+x = np.linspace(0, (end_time - start_time ), len(utilization1)  )
 
 fig = plt.figure()
 fig.set_size_inches(8,5)
-plt.plot(x, utilization)
+plt.plot(x, utilization1)
 plt.xlabel('time(ms)')
 plt.ylabel('Utilization (%)')
 plt.title('Utilization')
