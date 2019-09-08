@@ -149,7 +149,6 @@ fn main() {
     let mut request_schedule_latency: Vec<u64> = Vec::new();
 
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
-        let t1 = time::precise_time_ns();
         match request::parse_json(line) {
             Ok(req) => {
                 // Check function existence at the gateway
@@ -161,6 +160,7 @@ fn main() {
                 let interval = req.interval;
                 std::thread::sleep(std::time::Duration::from_millis(interval));
 
+                let t1 = time::precise_time_ns();
                 controller.schedule(req);
                 let t2 = time::precise_time_ns();
                 request_schedule_latency.push(t2-t1);
