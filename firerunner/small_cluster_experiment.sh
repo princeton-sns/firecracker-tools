@@ -20,7 +20,7 @@ do
 		echo "Request file: $request_file"
 
 		echo "No snapshot"
-		for mem_size in 1024
+		for mem_size in 768 1024 1280
 		do
 			echo "Cluster size: $mem_size"
 			sudo RUST_BACKTRACE=full ~/Dev/serverless/snapfaas/firerunner/target/release/controller \
@@ -34,12 +34,12 @@ do
 
 			tail -n 1 "measurements/$mem_size-cluster-$c-concurrency-$inter_time-intertime-nosnapshot.log"
 			mv -f `tail -n 1 "measurements/$mem_size-cluster-$c-concurrency-$inter_time-intertime-nosnapshot.log" | cut -d ':' -f 2 | tr -d [:space:]` \
-				"measurements/measurement-$mem_size-cluster-$c-concurrency-$inter_time-intertime-nosnapshot.log"
+				"measurements/measurement-$mem_size-cluster-$c-concurrency-$inter_time-intertime-nosnapshot.json"
 
 		done
 
 		echo "Snapshot"
-		for mem_size in 1024
+		for mem_size in 768 1024 1280
 		do
 			echo "Cluster size: $mem_size"
 			sudo RUST_BACKTRACE=full ~/Dev/serverless/snapfaas/firerunner/target/release/controller \
@@ -53,7 +53,7 @@ do
 
 			tail -n 1 "measurements/$mem_size-cluster-$c-concurrency-$inter_time-intertime-snapshot.log"
 			mv -f `tail -n 1 "measurements/$mem_size-cluster-$c-concurrency-$inter_time-intertime-snapshot.log" | cut -d ':' -f 2 | tr -d [:space:]` \
-				"measurements/measurement-$mem_size-cluster-$c-concurrency-$inter_time-intertime-snapshot.log"
+				"measurements/measurement-$mem_size-cluster-$c-concurrency-$inter_time-intertime-snapshot.json"
 		done
 
 		echo ""
