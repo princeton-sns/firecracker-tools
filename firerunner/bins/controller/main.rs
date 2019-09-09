@@ -146,6 +146,8 @@ fn main() {
 
     let workload_start = time::precise_time_ns();
 
+    let mut request_schedule_latency: Vec<u64> = Vec::new();
+
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
         match request::parse_json(line) {
             Ok(req) => {
@@ -158,7 +160,10 @@ fn main() {
                 let interval = req.interval;
                 std::thread::sleep(std::time::Duration::from_millis(interval));
 
+                let t1 = time::precise_time_ns();
                 controller.schedule(req);
+                let t2 = time::precise_time_ns();
+                request_schedule_latency.push(t2-t1);
 
             },
             Err(e) => panic!("Invalid request: {:?}", e)
@@ -169,7 +174,7 @@ fn main() {
 
     let mut waiting_time = 0;
     while controller.check_running() > 0 {
-        std::thread::sleep(std::time::Duration::from_secs(1));
+        std::thread::sleep(std::time::Duration::from_millis(200));
         let vm_running = controller.check_running();
         waiting_time = waiting_time+1;
         //println!("Still waiting for {} VMs after {} seconds", vm_running, waiting_time);
@@ -213,7 +218,8 @@ fn main() {
         "drop requests (concurrency)": controller.get_stat().num_drop_concurrency,
         "number of evictions": num_evict,
         "number of completed requests": num_complete,
-        "cumulative throughput": num_complete as f32 /((total_time as f32) /1000.)
+        "cumulative throughput": num_complete as f32 /((total_time as f32) /1000.),
+        "request schedule latency": request_schedule_latency
     });
 
 
