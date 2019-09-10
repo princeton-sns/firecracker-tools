@@ -13,16 +13,16 @@ use time::precise_time_ns;
 
 pub struct RequestManager {
     listener: File, // read end of the pipe through which VM signals it is ready to receive requests.
-    channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
+    channels: Arc<Mutex<BTreeMap<u32, (String, u32, Receiver<request::Request>, PipePair)>>>,
     stat: Arc<Mutex<Metrics>>,
     connections: BTreeMap<u32, JoinHandle<()>>,
-    response_sender: Sender<(u32, String, Vec<u8>)>,
+    response_sender: Sender<(u32, u32, String, Vec<u8>)>,
 }
 
 impl RequestManager {
-    pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, Receiver<request::Request>, PipePair)>>>,
+    pub fn new(channels: Arc<Mutex<BTreeMap<u32, (String, u32, Receiver<request::Request>, PipePair)>>>,
                 stat: Arc<Mutex<Metrics>>,
-                response_sender: Sender<(u32, String, Vec<u8>)>,
+                response_sender: Sender<(u32, u32, String, Vec<u8>)>,
                 listener: File) -> RequestManager
     {
         RequestManager {
@@ -46,7 +46,7 @@ impl RequestManager {
 
 //            println!("Connection from VM {}", &id);
 
-            if let Some((function, request_receiver, connection)) =
+            if let Some((function, user_id, request_receiver, connection)) =
                     self.channels.lock().expect("poisoned lock").remove(&id) {
 
                 let response_sender = self.response_sender.clone();
@@ -54,6 +54,7 @@ impl RequestManager {
                 self.connections.insert(id, thread::spawn(move || {
                     let mut conn_mgr = ConnectionManager {
                         id,
+                        user_id,
                         function,
                         request_receiver,
                         response_sender,
@@ -73,9 +74,10 @@ impl RequestManager {
 
 struct ConnectionManager<T>{
     id:  u32,
+    user_id: u32,
     function: String,
     request_receiver: Receiver<request::Request>,
-    response_sender: Sender<(u32, String, Vec<u8>)>,
+    response_sender: Sender<(u32, u32, String, Vec<u8>)>,
     connection: T,
     stat: Arc<Mutex<Metrics>>,
 }
@@ -103,7 +105,7 @@ impl<T: Read + Write> ConnectionManager<T> {
         for request in self.request_receiver.iter() {
             self.stat.lock().unwrap().log_request_timestamp(self.id,precise_time_ns());
             if let Ok(response) = Self::handle_request(&mut self.connection, request) {
-                self.response_sender.send((self.id, self.function.clone(), response)).unwrap();
+                self.response_sender.send((self.id, self.user_id, self.function.clone(), response)).unwrap();
                 self.stat.lock().unwrap().log_request_timestamp(self.id,precise_time_ns());
             } else {
                 println!("Error response from VM");
