@@ -45,6 +45,15 @@ def generate_request_timestamps(start, end, mu):
     return timestamp
 
 
+def find_function_index_and_user_id(num_user_cumsum, index):
+    index = index + 1
+    for i, cumsum in enumerate(num_user_cumsum):
+        if index <= cumsum:
+            break
+    if i == 0:
+        return i, index
+    else:
+        return i, index - num_user_cumsum[i-1]
 
 
 if __name__ == "__main__":
@@ -66,7 +75,12 @@ if __name__ == "__main__":
     mus = np.array([f['mu'] for f in data]) # average inter-arrival time in ms 
     start_times = np.array([f['start_time'] for f in data])
     end_times= np.array([f['end_time'] for f in data])
+    num_users = np.array([f['users'] for f in data])
+    users_cumsum = np.cumsum(np.array(num_users, dtype=np.int32))
     arrival_rates = 1/mus # num of invocations per ms
+
+    print(num_users)
+    print(users_cumsum)
 
     num_functions = len(arrival_rates)
 
@@ -82,7 +96,7 @@ if __name__ == "__main__":
     # list instead of np.array() allows different sizes for each np.array
     workload = [] 
 
-    for spike_start, spike_end, spike_mu in zip(start_times, end_times, mus):
+    for spike_start, spike_end, spike_mu, users in zip(start_times, end_times, mus, num_users):
         # during non-spike period, we assume that the function will have the
         # default_arrival_rate defined at the beginning. So for a function with
         # spike_start = 5000 and spike_end = 10000, we also need to generate
@@ -94,18 +108,21 @@ if __name__ == "__main__":
         if spike_end < max_end:
             windows.append(max_end)
 
-        timestamp = []
-        for i in range(len(windows)-1):
-            mu = default_mu
-            if windows[i] == spike_start:
-                mu = spike_mu
+        for u in range(users):
+            timestamp = []
+            for i in range(len(windows)-1):
+                mu = default_mu
+                if windows[i] == spike_start:
+                    mu = spike_mu
 
-            timestamp = np.append(timestamp, \
-                                  generate_request_timestamps(windows[i], windows[i+1], mu))
+                timestamp = np.append(timestamp, \
+                                      generate_request_timestamps(windows[i], windows[i+1], mu))
 
-        workload.append(timestamp)
+            workload.append(timestamp)
 
-    search_index = np.zeros(num_functions, dtype=np.int32)
+
+
+    search_index = np.zeros(len(workload), dtype=np.int32)
 
     #inter_arrival_time_cumsum = inter_arrival_time_cumsum.astype(int)
 
@@ -113,15 +130,19 @@ if __name__ == "__main__":
 
     pmin = 0
 
+    print("total number of functions: {}".format(len(workload)))
     while not finished(search_index, workload):
-        candidates = [ workload[i][search_index[i]] for i in range(num_functions)]
+        candidates = [ workload[i][search_index[i]] for i in range(len(workload))]
         minv = np.min(candidates)
         min_idx = np.argmin(candidates)
 
         interval = minv - pmin
         pmin = minv
 
-        json.dump({"interval": int(interval), "function": function_names[min_idx], "payload":{"request": 42}}, fd)
+        function_name_idx, user_id = find_function_index_and_user_id(users_cumsum, min_idx)
+
+        json.dump({"interval": int(interval), "function": function_names[function_name_idx],\
+                "user_id": int(user_id), "payload":{"request": 42}}, fd)
         fd.write('\n')
 
         search_index[min_idx] = search_index[min_idx] + 1

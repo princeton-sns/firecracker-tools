@@ -2,14 +2,17 @@
   mu: 50 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
   start_time: 0 # ms
   end_time: 100000 # ms
+  users: 20
 - name: "lorempy2"
   mu: 50 
   start_time: 0
   end_time: 100000
+  users: 20
 - name: "autocomplete"
   mu: 50 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
   start_time: 0 # ms
   end_time: 100000 # ms
+  users: 20
 #- name: "ocr-img"
 #  mu: 20000 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
 #  start_time: 0 # ms
@@ -18,7 +21,9 @@
   mu: 500 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
   start_time: 0 # ms
   end_time: 100000 # ms
+  users: 5
 - name: "markdown-to-html"
   mu: 1800 # average inter-arrival time in ms. 1000/mu=arrival rate per sec
   start_time: 0 # ms
   end_time: 100000 # ms
+  users: 2
