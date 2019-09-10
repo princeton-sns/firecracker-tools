@@ -38,7 +38,8 @@ impl Configuration {
             FunctionConfig {
                 name: c.name.clone(),
                 runtimefs: [self.runtimefs_dir.clone(), c.runtimefs.clone()].iter().collect(),
-                appfs: [self.appfs_dir.clone(), c.appfs.clone()].iter().collect(), 
+                appfs: [self.appfs_dir.clone(), c.appfs.clone()].iter().collect(),
+                users: c.users,
                 vcpus: c.vcpus,
                 memory: c.memory,
                 concurrency_limit: c.concurrency_limit,
@@ -68,6 +69,7 @@ pub struct FunctionConfig {
     pub name: String,
     pub runtimefs: PathBuf,
     pub appfs: PathBuf,
+    pub users: u32,
     pub vcpus: u64,
     pub memory: usize,
     pub concurrency_limit: usize,
