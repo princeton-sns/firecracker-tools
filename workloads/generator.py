@@ -46,9 +46,9 @@ def generate_request_timestamps(start, end, mu):
 
 
 def find_function_index_and_user_id(num_user_cumsum, index):
-    index = index + 1
+
     for i, cumsum in enumerate(num_user_cumsum):
-        if index <= cumsum:
+        if index < cumsum:
             break
     if i == 0:
         return i, index
