@@ -7,7 +7,6 @@ extern crate vmm;
 extern crate nix;
 extern crate cgroups;
 extern crate time;
-extern crate math;
 
 use std::io::BufRead;
 use serde_json::json;
@@ -144,9 +143,9 @@ fn main() {
 
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    let workload_start = time::precise_time_ns();
-
     let mut request_schedule_latency: Vec<u64> = Vec::new();
+
+    let workload_start = time::precise_time_ns();
 
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
         match request::parse_json(line) {
@@ -157,8 +156,9 @@ fn main() {
                     continue;
                 }
 
-                let interval = req.interval;
-                std::thread::sleep(std::time::Duration::from_millis(interval));
+                let timestamp = req.timestamp;
+                let left = (timestamp * 1000000).checked_sub(time::precise_time_ns() - workload_start).unwrap_or(0);
+                std::thread::sleep(std::time::Duration::from_nanos(left));
 
                 let t1 = time::precise_time_ns();
                 controller.schedule(req);
@@ -170,7 +170,7 @@ fn main() {
         }
     }
 
-//    println!("All requests exhausted");
+    println!("All requests exhausted");
 
     let mut waiting_time = 0;
     while controller.check_running() > 0 {

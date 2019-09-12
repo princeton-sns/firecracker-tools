@@ -20,8 +20,8 @@ def finished(si, workload):
 #
 # Given a start timestamp and an end timestamp, generate the timestamps of requests
 # whose inter-arrival time follows an exponential distribution/
-# All timestamps will fall within [start, end] range. 
-# 
+# All timestamps will fall within [start, end] range.
+#
 # @param start Beginning of the window. All generated timestamps will be greater than
 #              or equal to this value. This is not the timestamp of the first request
 #              (although it's possible that it might be).
@@ -41,8 +41,31 @@ def generate_request_timestamps(start, end, mu):
     inter_arrival_time_cumsum = inter_arrival_time_cumsum + start
     inter_arrival_time_cumsum = inter_arrival_time_cumsum.astype(int)
     timestamp = inter_arrival_time_cumsum[inter_arrival_time_cumsum <= end]
-    
+
     return timestamp
+
+
+# @param functions a list of function configuration objects
+def alternate_generator(functions, start, end, num_users):
+    elm_type = [('timestamp', int), ('user_id', int), ('function_name', 'U100')]
+    workload = np.array([], dtype=elm_type)
+    toolbar_width=40
+    sys.stderr.write("[%s]" % (" " * toolbar_width))
+    sys.stderr.flush()
+    sys.stderr.write("\b" * (toolbar_width+1)) # return to start of line, after '['
+    one_hundredth = (len(functions) * num_users) / toolbar_width
+    i = 0
+    for function in functions:
+        for user_id in range(0, num_users):
+            arrivals = generate_request_timestamps(start, end, function['mu'])
+            vfunc = np.frompyfunc(lambda x: (x, user_id, function['name']), 1, 1)
+            workload = np.append(workload, vfunc(arrivals).astype(elm_type))
+            i += 1
+            if i % one_hundredth == 0:
+                sys.stderr.write('*')
+                sys.stderr.flush()
+            #print('User %d' % user_id, file=sys.stderr)
+    return np.sort(workload, order=['timestamp'])
 
 
 def find_function_index_and_user_id(num_user_cumsum, index):
@@ -63,16 +86,26 @@ if __name__ == "__main__":
     default_mu = 1 / default_arrival_rate
 
     workload_config_file = sys.argv[1]
-    output_request_file = sys.argv[2]
-    print('loading workload config from: ' + workload_config_file)
+    print('loading workload config from: ' + workload_config_file, file=sys.stderr)
 
     with open(workload_config_file) as f:
         config = f.read()
 
     data = yaml.load(config, Loader=yaml.Loader) # a list of dicts
+    workload = alternate_generator(data['functions'], data['start_time'], data['end_time'], data['num_users'])
+    for request in workload[['timestamp', 'user_id', 'function_name']]:
+        print("%s" % json.dumps({
+            'timestamp': int(request[0]),
+            'user_id': int(request[1]),
+            'function': request[2],
+            'payload': {'request': 42}
+        }))
+    exit()
+
+    output_request_file = sys.argv[2]
 
     function_names = [f['name'] for f in data]
-    mus = np.array([f['mu'] for f in data]) # average inter-arrival time in ms 
+    mus = np.array([f['mu'] for f in data]) # average inter-arrival time in ms
     start_times = np.array([f['start_time'] for f in data])
     end_times= np.array([f['end_time'] for f in data])
     num_users = np.array([f['users'] for f in data])

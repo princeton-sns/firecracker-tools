@@ -245,7 +245,7 @@ impl Inner {
 //                                .log_request_timestamp(new_vm.id, time::precise_time_ns());
                             self.send_request(req, new_vm);
                        } else {
-//                            println!("Dropping request for {}", &req.function);
+                            println!("Dropping request for {}", &req.function);
                             self.stat.lock().unwrap().drop_req_resource(1);
                             self.stat.lock().unwrap().drop_req(1);
                         }
@@ -341,7 +341,7 @@ impl Inner {
     }
 
     fn vcpu_count(&self, mem: usize) -> u64 {
-        let count = math::round::ceil(mem as f64 / self.one_hyperthread_mem_size as f64, 0);
+        let count = (mem as f64 / self.one_hyperthread_mem_size as f64).ceil();
         count as u64
     }
 
