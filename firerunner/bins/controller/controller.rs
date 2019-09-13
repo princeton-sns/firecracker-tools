@@ -276,7 +276,7 @@ impl Inner {
     pub fn get_idle_vm(&mut self, req: &request::Request) -> Option<Vm> {
         if let Some(idle_tree) = self.idle_functions.get_mut(&req.function){
             if let Some(vms) = idle_tree.get_mut(&req.user_id) {
-                vms.pop();
+                return vms.pop();
             }
         }
         None
