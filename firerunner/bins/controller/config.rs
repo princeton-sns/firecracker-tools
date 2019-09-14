@@ -35,9 +35,12 @@ impl Configuration {
 
     pub fn get(&self, name: &String) -> Option<FunctionConfig> {
         self.configs.get(name).map(|c| {
+            let mut runtimefs = self.runtimefs_dir.clone();
+            runtimefs.push(&c.runtime);
+            runtimefs.set_extension("ext4");
             FunctionConfig {
                 name: c.name.clone(),
-                runtimefs: [self.runtimefs_dir.clone(), c.runtimefs.clone()].iter().collect(),
+                runtimefs,
                 appfs: [self.appfs_dir.clone(), c.appfs.clone()].iter().collect(),
                 users: c.users,
                 vcpus: c.vcpus,
@@ -67,6 +70,7 @@ impl Configuration {
 #[derive(Debug, Deserialize, Clone)]
 pub struct FunctionConfig {
     pub name: String,
+    // runtimfs is inferred from runtime
     pub runtimefs: PathBuf,
     pub appfs: PathBuf,
     pub users: u32,
