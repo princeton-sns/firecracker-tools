@@ -3,6 +3,8 @@ BASE_DIR ?= ..
 KERNEL ?= $(BASE_DIR)/store/vmlinux
 SUDO ?= sudo
 
+MEMSIZE ?= 1024
+
 RUNTIMES ?= nodejs python2
 RUNTIME_FSS = $(patsubst %,$(BASE_DIR)/store/runtimes/%.ext4,$(RUNTIMES))
 
@@ -10,6 +12,13 @@ APPS ?= markdown-to-html
 APP_FSS = $(patsubst %,$(BASE_DIR)/store/apps/%.ext4,$(APPS))
 
 CONTROLLER = $(BASE_DIR)/firerunner/target/release/controller
+
+ifeq ($(MODE),snapshot)
+	MODE=snapshot
+	SNAPSHOT_ARG=--snapshot
+else
+	MODE=nosnapshot
+endif
 
 check_defined = \
 		    $(strip $(foreach 1,$1, \
@@ -47,8 +56,11 @@ run: FORCE $(CONTROLLER) $(KERNEL) $(APP_FSS) $(RUNTIME_FSS) $(BASE_DIR)/experim
 	@echo Running $(EXPERIMENT) experiment...
 	@echo Creating "firecracker" cgroup
 	@$(SUDO) sudo cgcreate -g cpu,cpuset:/firecracker
+	@mkdir -p $(BASE_DIR)/experiments/$(EXPERIMENT)/results
+	@touch $(BASE_DIR)/experiments/$(EXPERIMENT)/results/$(MEMSIZE)-$(MODE).json
 	@$(SUDO) $(CONTROLLER) -k $(KERNEL) --runtimefs_dir $(BASE_DIR)/store/runtimes --appfs_dir $(BASE_DIR)/store/apps \
-		--fconfig $(BASE_DIR)/experiments/$(EXPERIMENT)/function_config.yaml --requests $(BASE_DIR)/experiments/$(EXPERIMENT)/workload.json
+		--fconfig $(BASE_DIR)/experiments/$(EXPERIMENT)/function_config.yaml --requests $(BASE_DIR)/experiments/$(EXPERIMENT)/workload.json \
+		--output $(BASE_DIR)/experiments/$(EXPERIMENT)/results/$(MEMSIZE)-$(MODE).json $(SNAPSHOT_ARG) --mem_size $(MEMSIZE)
 
 FORCE:
 

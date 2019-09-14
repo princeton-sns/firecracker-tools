@@ -15,6 +15,7 @@ use clap::{App, Arg};
 use std::path::Path;
 use std::fs::File;
 use std::error::Error;
+use std::io::Write;
 
 mod config;
 mod controller;
@@ -104,20 +105,30 @@ fn main() {
                 .default_value("0")
                 .help("Total memory capacity of the cluster")
         )
+        .arg(
+            Arg::with_name("output path")
+                .long("output")
+                .value_name("o")
+                .takes_value(true)
+                .required(false)
+                .help("JSON file to store output metrics (outputs to STDOUT by default)")
+        )
         .get_matches();
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
-    let requests_file = std::fs::File::open(cmd_arguments.value_of("requests file").unwrap())
+    let requests_file = File::open(cmd_arguments.value_of("requests file").unwrap())
         .expect("Request file not found");
     let runtimefs_dir = cmd_arguments.value_of("runtimefs dir").unwrap();
     let appfs_dir = cmd_arguments.value_of("appfs dir").unwrap();
-    let func_config = std::fs::File::open(cmd_arguments.value_of("function config file").unwrap())
+    let func_config = File::open(cmd_arguments.value_of("function config file").unwrap())
         .expect("Function config file not found");
     let debug = cmd_arguments.is_present("debug");
     let snapshot = cmd_arguments.is_present("snapshot");
     let mem_size: usize = cmd_arguments.value_of("total memory capacity").unwrap()
                                        .parse::<usize>().unwrap();
+    let output_file = cmd_arguments.value_of("output path")
+        .map(|fname| Box::new(File::create(fname).expect("Could not create output file")) as Box<Write>).unwrap_or(Box::new(std::io::stdout()));
 
     // We disable seccomp filtering when testing, because when running the test_gnutests
     // integration test from test_unittests.py, an invalid syscall is issued, and we crash
@@ -192,14 +203,7 @@ fn main() {
     let num_drop_concurrency = controller.get_stat().num_drop_concurrency;
     let num_vm = controller.get_stat().boot_timestamp.len();
     let num_evict = controller.get_stat().eviction_timestamp.len();
-
-    println!("{} requests completed", num_complete);
-    println!("{} requests dropped due to resource exhaustion", num_drop_resource);
-    println!("{} requests dropped due to concurrency limit", num_drop_concurrency);
-    println!("total time: {}ms", total_time);
-    println!("throughput: {} req/sec", num_complete as f32 /((total_time as f32) /1000.));
-    println!("Booted a total of {} VMs", num_vm);
-    println!("Number of evictions: {}", num_evict);
+    let throughput = (num_complete as f32) / (total_time as f32 / 1000f32);
 
     // Output time measurement as a json string
     let res = json!({
@@ -214,29 +218,19 @@ fn main() {
         "request/response timestamps": controller.get_stat().request_response_timestamp,
         "eviction timestamps": controller.get_stat().eviction_timestamp,
         "vm mem sizes": controller.get_stat().vm_mem_size,
-        "drop requests (resource)": controller.get_stat().num_drop_resource,
-        "drop requests (concurrency)": controller.get_stat().num_drop_concurrency,
+        "drop requests (resource)": num_drop_resource,
+        "drop requests (concurrency)": num_drop_concurrency,
         "number of evictions": num_evict,
+        "number of vms booted": num_vm,
         "number of completed requests": num_complete,
-        "cumulative throughput": num_complete as f32 /((total_time as f32) /1000.),
+        "cumulative throughput": throughput,
         "request schedule latency": request_schedule_latency
     });
 
 
-    let output_filename = format!("measurement-{}-{}.json", workload_start, workload_end);
-    let output_path = format!("measurements/{}", output_filename);
-    let path = Path::new(&output_path);
-
-    let mut file = match File::create(&path) {
-        Err(e) => panic!("couldn't create {}: {}", path.display(), e.description()),
-        Ok(file) => file,
-    };
-
-    if let Err(e) = serde_json::to_writer_pretty(file, &res) {
+    if let Err(e) = serde_json::to_writer_pretty(output_file, &res) {
         panic!("failed to write measurement results as json: {}", e.description());
     }
-
-    println!("Measurement results written to: ./measurements/{}", output_filename);
 
     controller.kill_all();
 }

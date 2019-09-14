@@ -417,7 +417,7 @@ impl Inner {
     pub fn process_response(&mut self, response: (u32, u32, String, Vec<u8>)) {
         let (id, user_id, function, response) = response;
 //        self.stat.lock().unwrap().log_request_timestamp(id, time::precise_time_ns());
-        println!("{}, {}, {}: {}", id, user_id, function, String::from_utf8(response).unwrap());
+        //println!("{}, {}, {}: {}", id, user_id, function, String::from_utf8(response).unwrap());
 
         self.stat.lock().unwrap().complete_req(1);
 
