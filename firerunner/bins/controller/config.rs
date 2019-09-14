@@ -43,7 +43,7 @@ impl Configuration {
                 vcpus: c.vcpus,
                 memory: c.memory,
                 concurrency_limit: c.concurrency_limit,
-                load_dir: c.load_dir.clone(), 
+                runtime: c.runtime.clone(), 
             }
         })
     }
@@ -73,6 +73,6 @@ pub struct FunctionConfig {
     pub vcpus: u64,
     pub memory: usize,
     pub concurrency_limit: usize,
-    pub load_dir: Option<PathBuf>,
+    pub runtime: String,
 }
 

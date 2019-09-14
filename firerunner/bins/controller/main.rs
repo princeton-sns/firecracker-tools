@@ -7,15 +7,17 @@ extern crate vmm;
 extern crate nix;
 extern crate cgroups;
 extern crate time;
+extern crate indicatif;
 
 use std::io::BufRead;
 use serde_json::json;
 
 use clap::{App, Arg};
-use std::path::Path;
 use std::fs::File;
 use std::error::Error;
-use std::io::Write;
+use std::io::{Write, Seek, SeekFrom};
+
+use indicatif::ProgressBar;
 
 mod config;
 mod controller;
@@ -90,11 +92,12 @@ fn main() {
                 .help("Whether VMs get to write to stdout")
         )
         .arg(
-            Arg::with_name("snapshot")
-                .long("snapshot")
-                .takes_value(false)
+            Arg::with_name("snapshot dir")
+                .long("snapshot_dir")
+                .value_name("SNAPSHOTS_DIR")
+                .takes_value(true)
                 .required(false)
-                .help("Boot VMs from snapshots")
+                .help("Boot VMs from snapshots in this directory")
         )
         .arg(
             Arg::with_name("total memory capacity")
@@ -117,14 +120,14 @@ fn main() {
 
     let kernel = cmd_arguments.value_of("kernel").unwrap().to_string();
     let cmd_line = cmd_arguments.value_of("command line").unwrap().to_string();
-    let requests_file = File::open(cmd_arguments.value_of("requests file").unwrap())
+    let mut requests_file = File::open(cmd_arguments.value_of("requests file").unwrap())
         .expect("Request file not found");
     let runtimefs_dir = cmd_arguments.value_of("runtimefs dir").unwrap();
     let appfs_dir = cmd_arguments.value_of("appfs dir").unwrap();
     let func_config = File::open(cmd_arguments.value_of("function config file").unwrap())
         .expect("Function config file not found");
     let debug = cmd_arguments.is_present("debug");
-    let snapshot = cmd_arguments.is_present("snapshot");
+    let snapshots = cmd_arguments.value_of("snapshot dir").map(|sd| [sd].iter().collect());
     let mem_size: usize = cmd_arguments.value_of("total memory capacity").unwrap()
                                        .parse::<usize>().unwrap();
     let output_file = cmd_arguments.value_of("output path")
@@ -146,7 +149,7 @@ fn main() {
                                                      cmd_line,
                                                      kernel,
                                                      debug,
-                                                     snapshot,
+                                                     snapshots.clone(),
                                                      mem_size);
     println!("{:?}", controller.get_cluster_info());
 
@@ -158,6 +161,11 @@ fn main() {
 
     let workload_start = time::precise_time_ns();
 
+    let num_requests = std::io::BufReader::new(&mut requests_file).lines().count();
+
+    requests_file.seek(SeekFrom::Start(0)).expect("Couldn't seek to start of request file");
+
+    let progress = ProgressBar::new(num_requests as u64);
     for line in std::io::BufReader::new(requests_file).lines().map(|l| l.unwrap()) {
         match request::parse_json(line) {
             Ok(req) => {
@@ -175,24 +183,14 @@ fn main() {
                 controller.schedule(req);
                 let t2 = time::precise_time_ns();
                 request_schedule_latency.push(t2-t1);
-
+                progress.inc(1);
             },
             Err(e) => panic!("Invalid request: {:?}", e)
         }
     }
 
-    println!("All requests exhausted");
-
-    let mut waiting_time = 0;
     while controller.check_running() > 0 {
         std::thread::sleep(std::time::Duration::from_millis(200));
-        let vm_running = controller.check_running();
-        waiting_time = waiting_time+1;
-        //println!("Still waiting for {} VMs after {} seconds", vm_running, waiting_time);
-
-//        if waiting_time > 60 && vm_running <= 2 {
-//            break;
-//        }
     }
 
     let workload_end = time::precise_time_ns();
@@ -207,7 +205,7 @@ fn main() {
 
     // Output time measurement as a json string
     let res = json!({
-        "snapshot": snapshot,
+        "snapshot": snapshots.is_some(),
         "total cpu": controller.get_cluster_info().total_cpu,
         "total mem": controller.get_cluster_info().total_mem,
         "app config file": cmd_arguments.value_of("function config file").unwrap(),

@@ -1,10 +1,11 @@
 use std::collections::btree_map::BTreeMap;
 use std::default::Default;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread::{self, JoinHandle};
 use std::fs::File;
+use std::path::PathBuf;
 use std::os::unix::io::FromRawFd;
 
 use super::config;
@@ -16,7 +17,6 @@ use super::metrics::Metrics;
 use firerunner::runner::{VmApp, VmAppConfig};
 use firerunner::pipe_pair::PipePair;
 
-const MEM_4G: usize = 4096;  // in MB
 const VM_SIZE_INCREMENT: usize = 128; // in MB
 const CPU_SHARE_INCREMENT: usize = 64;
 // represent an VM from a management perspective
@@ -43,7 +43,7 @@ pub struct Inner {
     stat: Arc<Mutex<Metrics>>,
     notifier: File,
     debug: bool,          // whether VMs keeps stdout
-    snapshot: bool,
+    snapshot: Option<PathBuf>,
     one_hyperthread_mem_size: usize,
 }
 
@@ -55,7 +55,7 @@ pub struct Controller {
 impl Controller {
     pub fn new(function_configs: config::Configuration, seccomp_level: u32,
                cmd_line: String, kernel: String, debug: bool,
-               snapshot: bool, mem_size: usize) -> Controller {
+               snapshot: Option<PathBuf>, mem_size: usize) -> Controller {
 
         let (listener, notifier) = nix::unistd::pipe().expect("Failed to create a pipe");
 
@@ -141,10 +141,9 @@ impl Controller {
     // check if there's any running function
     pub fn check_running(&self) -> u64{
         let mut num_running: u64 = 0;
-        for (func_name, run_tree) in self.inner.lock().unwrap().running_functions.iter() {
-            for (user_id, run_list) in run_tree.iter() {
+        for (_, run_tree) in self.inner.lock().unwrap().running_functions.iter() {
+            for (_, run_list) in run_tree.iter() {
                 num_running = num_running + run_list.len() as u64;
-                //println!("Function {} still has {} VMs running", func_name, run_list.len());
             }
         }
         return num_running;
@@ -245,7 +244,7 @@ impl Inner {
 //                                .log_request_timestamp(new_vm.id, time::precise_time_ns());
                             self.send_request(req, new_vm);
                        } else {
-                            println!("Dropping request for {}", &req.function);
+                            //println!("Dropping request for {}", &req.function);
                             self.stat.lock().unwrap().drop_req_resource(1);
                             self.stat.lock().unwrap().drop_req(1);
                         }
@@ -283,7 +282,6 @@ impl Inner {
     }
 
     pub fn get_evictable_vm(&mut self, req: &request::Request) -> Option<(Vm, usize)> {
-        let req_cpu: u64 = self.function_configs.get(&req.function).unwrap().vcpus;
         let req_mem: usize = self.function_configs.get(&req.function).unwrap().memory;
         let user_id: u32 = req.user_id;
 
@@ -312,15 +310,7 @@ impl Inner {
     // free vm's resources in the cluster
     // free the Vm struct
     pub fn evict(&self, evict_vm: Vm) {
-//        println!("trying to evict");
-//        let mem = evict_vm.app.config.mem_size_mib.unwrap();
-//        let cpu = evict_vm.app.config.cpu_share;
-//        println!("{:?}", self.cluster.lock().unwrap());
-//        println!("freeing cpu: {}, mem: {}", cpu, mem);
-//        self.cluster.lock().unwrap().free(cpu, mem);
-//        println!("{:?}", self.cluster.lock().unwrap());
-//        evict_vm.app.kill(); // vm is automatically killed with its VmApp instance is dropped
-//        println!("vm killed");
+        drop(evict_vm);
     }
 
     pub fn evict_and_swap(&self, req: &request::Request, evict_vm: Vm) -> Vm {
@@ -351,10 +341,12 @@ impl Inner {
         let id = self.vm_id_counter.fetch_add(1, Ordering::Relaxed) as u32;
         let (req_sender, req_receiver) = channel();
 
-        let mut load_dir = None;
-        if self.snapshot{
-            load_dir = config.load_dir;
-        }
+        let load_dir = self.snapshot.as_ref().map(|snapshots| {
+            let mut dir = PathBuf::new();
+            dir.push(snapshots);
+            dir.push(format!("{}-{}", config.runtime, config.memory));
+            dir
+        });
 
         let mem = config.memory;
         let cpu_share = self.cpu_share(mem);
@@ -415,7 +407,7 @@ impl Inner {
     }
 
     pub fn process_response(&mut self, response: (u32, u32, String, Vec<u8>)) {
-        let (id, user_id, function, response) = response;
+        let (id, user_id, function, _response_data) = response;
 //        self.stat.lock().unwrap().log_request_timestamp(id, time::precise_time_ns());
         //println!("{}, {}, {}: {}", id, user_id, function, String::from_utf8(response).unwrap());
 
