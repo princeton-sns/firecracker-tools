@@ -40,9 +40,8 @@ pub struct VmApp {
 impl VmApp {
     pub fn kill(&mut self) {
 //        println!("issuing kill signal to process: {}", &self.process);
-        nix::sys::signal::kill(self.process, nix::sys::signal::Signal::SIGKILL).expect("Failed to kill child");
+        nix::sys::signal::kill(self.process, nix::sys::signal::Signal::SIGKILL);
 //        println!("waiting for process: {}", &self.process);
-        self.wait();
     }
 
     pub fn wait(&mut self) {
@@ -60,9 +59,10 @@ impl Drop for VmApp {
 }
 
 impl VmAppConfig {
-    pub fn run(self, debug: bool) -> VmApp {
+    pub fn run(self, debug: bool, evict: Option<VmApp>) -> VmApp {
         let (request_reader, request_writer) = nix::unistd::pipe().unwrap();
         let (response_reader, response_writer) = nix::unistd::pipe().unwrap();
+        let evict_pid = evict.map(|e| e.process);
         match unistd::fork() {
             Err(_) => panic!("Couldn't fork!!"),
             Ok(ForkResult::Parent { child, .. }) => {
@@ -155,6 +155,12 @@ impl VmAppConfig {
                     };
                     vmm.insert_block_device(block_config).expect("AppBlk");
                 }
+
+
+                evict_pid.map(|evict_pid| {
+                    nix::sys::wait::waitpid(evict_pid, None);
+                }).unwrap_or(());
+                std::mem::forget(evict_pid);
 
                 vmm.start_instance().expect("Start");
                 vmm.join();

@@ -219,7 +219,7 @@ impl Inner {
                     Some((host_id,_)) => {
                         self.cluster.allocate(host_id, req_mem);
 
-                        let new_vm = self.launch_new_vm(&req);
+                        let new_vm = self.launch_new_vm(&req, None);
 //                        println!("New VM: {:?}", new_vm);
 //                        self.stat.lock().unwrap()
 //                            .log_request_timestamp(new_vm.id, time::precise_time_ns());
@@ -306,24 +306,16 @@ impl Inner {
 
     }
 
-    // kill the vm process
-    // free vm's resources in the cluster
-    // free the Vm struct
-    pub fn evict(&self, evict_vm: Vm) {
-        drop(evict_vm);
-    }
-
     pub fn evict_and_swap(&self, req: &request::Request, evict_vm: Vm) -> Vm {
         let t0 = time::precise_time_ns();
         let id = evict_vm.id;
-        self.evict(evict_vm);
         let t1 = time::precise_time_ns();
         {
             let mut stat = self.stat.lock().unwrap();
             stat.log_eviction_timestamp(id, t0);
             stat.log_eviction_timestamp(id, t1);
         }
-        self.launch_new_vm(req)
+        self.launch_new_vm(req, Some(evict_vm))
     }
 
     fn cpu_share(&self, mem: usize) -> u64 {
@@ -335,7 +327,7 @@ impl Inner {
         count as u64
     }
 
-    pub fn launch_new_vm(&self, req: &request::Request) -> Vm {
+    pub fn launch_new_vm(&self, req: &request::Request, evict_vm: Option<Vm>) -> Vm {
         let config = self.function_configs.get(&req.function).unwrap();
 
         let id = self.vm_id_counter.fetch_add(1, Ordering::Relaxed) as u32;
@@ -374,7 +366,7 @@ impl Inner {
             mem_size_mib: Some(config.memory),
             load_dir,
             dump_dir: None, // ignored by now
-        }.run(self.debug);
+        }.run(self.debug, evict_vm.map(|e| e.app));
 
         self.channels.lock()
             .expect("poisoned lock")
