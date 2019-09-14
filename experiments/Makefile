@@ -40,7 +40,7 @@ $(KERNEL):
 	@wget -O $@ https://praxis.cs.princeton.edu/snapfaas/vmlinux
 
 $(CONTROLLER): FORCE
-	cargo build --release --manifest-path $(BASE_DIR)/firerunner/Cargo.toml --bin controller
+	@cargo build --release -q --manifest-path $(BASE_DIR)/firerunner/Cargo.toml --bin controller
 
 $(BASE_DIR)/store/apps/%.ext4:
 	@echo Fetching app "$*"
