@@ -59,7 +59,7 @@ $(BASE_DIR)/store/snapshots/%:
 
 $(BASE_DIR)/experiments/$(EXPERIMENT)/workload.json: $(BASE_DIR)/experiments/$(EXPERIMENT)/workload.yaml
 	@echo Generating workload
-	python $(BASE_DIR)/workloads/generator.py $^ > $@
+	python3 $(BASE_DIR)/workloads/generator.py $^ > $@
 
 run: FORCE $(CONTROLLER) $(KERNEL) $(APP_FSS) $(RUNTIME_FSS) $(BASE_DIR)/experiments/$(EXPERIMENT)/workload.json $(SNAPSHOTS)
 	@echo Running $(EXPERIMENT) experiment...
