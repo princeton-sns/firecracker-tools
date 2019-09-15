@@ -19,7 +19,7 @@ pc.defineParameter("hardware_type",
                    "Optional physical node type (d710, c8220, etc)",
                    portal.ParameterType.STRING, "")
 
-pc.bindParameter()
+params = pc.bindParameter()
 
 # Add a raw PC to the request.
 node = request.RawPC("node")
