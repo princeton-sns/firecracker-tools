@@ -4,6 +4,8 @@ import json
 import glob
 import os
 import sys
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 experiment_dir = sys.argv[1]
