@@ -36,5 +36,5 @@ while memory <= (max_memory * 1024):
     os.system("make MEMSIZE=%d MODE=snapshot EXPERIMENT=%s run > /dev/null" % (memory, experiment))
     print("\t+ Running non-snapshot version...")
     os.system("make MEMSIZE=%d MODE=nosnapshot EXPERIMENT=%s run > /dev/null" % (memory, experiment))
-    memory += 1024
+    memory += increment
     time.sleep(20)
