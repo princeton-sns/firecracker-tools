@@ -2,6 +2,8 @@
 
 import os
 import sys
+import time
+import math
 
 experiments_dir = os.path.dirname(sys.argv[0])
 
@@ -19,9 +21,14 @@ print("OK, running experiment \"%s\" from %dMB to %dMB in 1GB increments" % (exp
 
 os.chdir(experiments_dir)
 
+increment_base = 128
+runs = 30
+
+increment = math.ceil((max_memory * 1024 - min_memory * 1024) / increment_base / runs) * increment_base
+
 memory = min_memory * 1024
 count = 0
-total = max_memory - min_memory + 1
+total = math.ceil((max_memory - min_memory) * 1024 / increment)
 while memory <= (max_memory * 1024):
     count += 1
     print("Run %d of %d" % (count, total)) 
@@ -30,3 +37,4 @@ while memory <= (max_memory * 1024):
     print("\t+ Running non-snapshot version...")
     os.system("make MEMSIZE=%d MODE=nosnapshot EXPERIMENT=%s run > /dev/null" % (memory, experiment))
     memory += 1024
+    time.sleep(20)
