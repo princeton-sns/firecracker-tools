@@ -12,7 +12,7 @@ SNAPSHOTS_256 = $(patsubst %,$(BASE_DIR)/store/snapshots/%-256,$(RUNTIMES))
 SNAPSHOTS_128 = $(patsubst %,$(BASE_DIR)/store/snapshots/%-128,$(RUNTIMES))
 SNAPSHOTS = $(SNAPSHOTS_128) $(SNAPSHOTS_256)
 
-APPS ?= markdown-to-html img-ocr resize sentiment-analysis autocomplete
+APPS ?= markdown-to-html ocr-img resize sentiment-analysis autocomplete
 APP_FSS = $(patsubst %,$(BASE_DIR)/store/apps/%.ext4,$(APPS))
 
 CONTROLLER = $(BASE_DIR)/firerunner/target/release/controller

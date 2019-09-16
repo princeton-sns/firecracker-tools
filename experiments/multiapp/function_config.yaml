@@ -8,9 +8,9 @@
   users: 6000
   expected_running_time: 300
 
-- name: "img-ocr"
+- name: "ocr-img"
   runtimefs: "nodejs.ext4"
-  appfs: "img-ocr.ext4"
+  appfs: "ocr-img.ext4"
   vcpus: 1
   memory: 256
   concurrency_limit: 1000

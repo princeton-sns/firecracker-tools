@@ -4,7 +4,7 @@ num_users: 40
 functions:
   - name: "markdown-to-html"
     mu: 1500
-  - name: "img-ocr"
+  - name: "ocr-img"
     mu: 43000
   - name: "resize"
     mu: 8500
