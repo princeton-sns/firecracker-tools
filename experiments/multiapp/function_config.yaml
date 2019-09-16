@@ -29,12 +29,12 @@
   expected_running_time: 1700
 
 - name: "sentiment-analysis"
-  runtimefs: "python.ext4"
+  runtimefs: "python2.ext4"
   appfs: "sentiment-analysis.ext4"
   vcpus: 1
   memory: 256
   concurrency_limit: 1000
-  runtime: "nodejs"
+  runtime: "python2"
   users: 6000
   expected_running_time: 600
 
