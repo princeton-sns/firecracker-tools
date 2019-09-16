@@ -3,7 +3,7 @@ BASE_DIR ?= ..
 KERNEL ?= $(BASE_DIR)/store/vmlinux
 SUDO ?= sudo
 
-MEMSIZE ?= 1024
+MEMSIZE ?= 256
 
 RUNTIMES ?= nodejs python2
 RUNTIME_FSS = $(patsubst %,$(BASE_DIR)/store/runtimes/%.ext4,$(RUNTIMES))
@@ -12,7 +12,7 @@ SNAPSHOTS_256 = $(patsubst %,$(BASE_DIR)/store/snapshots/%-256,$(RUNTIMES))
 SNAPSHOTS_128 = $(patsubst %,$(BASE_DIR)/store/snapshots/%-128,$(RUNTIMES))
 SNAPSHOTS = $(SNAPSHOTS_128) $(SNAPSHOTS_256)
 
-APPS ?= markdown-to-html
+APPS ?= markdown-to-html img-ocr resize sentiment-analysis autocomplete
 APP_FSS = $(patsubst %,$(BASE_DIR)/store/apps/%.ext4,$(APPS))
 
 CONTROLLER = $(BASE_DIR)/firerunner/target/release/controller
