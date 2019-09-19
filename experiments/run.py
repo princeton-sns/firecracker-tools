@@ -39,3 +39,7 @@ while memory <= (max_memory * 1024):
     os.system("make MEMSIZE=%d MODE=nosnapshot EXPERIMENT=%s run > /dev/null" % (memory, experiment))
     memory += increment
     time.sleep(20)
+
+os.system("./plot_success_rate.py %s" % experiment)
+os.system("./plot_throughput.py %s" % experiment)
+os.system("./plot_sched_latency.py %s" % experiment)

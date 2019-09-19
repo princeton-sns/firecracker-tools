@@ -70,6 +70,9 @@ run: FORCE $(CONTROLLER) $(KERNEL) $(APP_FSS) $(RUNTIME_FSS) $(BASE_DIR)/experim
 	@$(SUDO) $(CONTROLLER) -k $(KERNEL) --runtimefs_dir $(BASE_DIR)/store/runtimes --appfs_dir $(BASE_DIR)/store/apps \
 		--fconfig $(BASE_DIR)/experiments/$(EXPERIMENT)/function_config.yaml --requests $(BASE_DIR)/experiments/$(EXPERIMENT)/workload.json \
 		--output $(BASE_DIR)/experiments/$(EXPERIMENT)/results/$(MEMSIZE)-$(MODE).json $(SNAPSHOT_ARG) --mem_size $(MEMSIZE)
+	@echo Deleting "firecracker" cgroup
+	@$(SUDO) sudo cgdelete -r -g cpu,cpuset:/firecracker
+	@echo Done
 
 FORCE:
 

@@ -21,6 +21,7 @@ nosnapshots.sort(key=lambda e: e["total mem"])
 def completion_rate(experiment):
     complete = experiment["number of completed requests"]
     drop = experiment["drop requests (resource)"]
+    drop += experiment["drop requests (concurrency)"]
     total = complete + drop
     return complete / total * 100
 
