@@ -8,9 +8,17 @@ use vmm::vmm_config::boot_source::BootSourceConfig;
 use vmm::vmm_config::drive::BlockDeviceConfig;
 use vmm::vmm_config::machine_config::VmConfig;
 use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
+use vmm::vmm_config::vsock::VsockDeviceConfig;
+use std::thread;
+use std::io::{Read, Write};
+use std::collections::HashMap;
+use std::str;
+use std::iter::FromIterator;
 
+use crate::vsock::*;
 use crate::vmm_wrapper::VmmWrapper;
 use super::pipe_pair::PipePair;
+use crate::fs::*;
 
 #[derive(Debug)]
 pub struct VmAppConfig {
@@ -155,7 +163,61 @@ impl VmAppConfig {
                     };
                     vmm.insert_block_device(block_config).expect("AppBlk");
                 }
+                vmm.add_vsock(
+                    VsockDeviceConfig {id: libc::VMADDR_CID_HOST.to_string(),
+                                       guest_cid: self.vsock_cid}).expect("vsock");
 
+               // let mut db = HashMap::new();
+                let vthread = thread::spawn(move || {
+                    let vlistener = VsockListener::bind(VMADDR_CID_HOST, 52);
+                    let vconnection = vlistener.unwrap().accept();
+                    match vconnection {
+                        Ok((mut vstream, vaddr)) => {
+                            println!("Successfully connected to {:?}", vaddr);
+                            let mut buffer = [0;100];
+                            while match vstream.read(&mut buffer) {
+                                Ok(msg_len) => {
+                                    println!("Received MSG!: {:?}", &buffer[0..msg_len]);
+                                    let reqs : Vec<&[u8]>= buffer
+                                        .split(|x| *x == b'\r')
+                                        //.filter(|y| !y.is_empty())
+                                        .collect();
+                                    println!("reqs: {:?}", reqs);
+                                    for req in reqs.iter() {
+                                        handle_req(req.clone());
+                                    }
+/*
+                                    let op = str::from_utf8(&req[0]).unwrap().to_owned();
+                                    if op.trim() == "1" {
+                                        let key = str::from_utf8(&req[1]).unwrap().to_owned();
+                                        let value = str::from_utf8(&req[2]).unwrap().to_owned();
+                                        println!("WRITE REQ k={:?},v={:?}", key, value);
+                                        db.insert(key, value);
+                                    } else if op.trim() == "2" {
+                                        let key = str::from_utf8(&req[1]).unwrap().to_owned();
+                                        println!("READ REQ k={:?}", key);
+                                        match db.get(&key) {
+                                            Some(value) => {
+                                                vstream.write(value.as_bytes());
+                                            },
+                                            None => {
+                                                vstream.write(b"None! :(");
+                                            }
+                                        }
+                                    }*/
+                                    buffer = [0;100];
+                                    true
+                                },
+                                Err(e) => {
+                                    //println!("Error occurred :( {:?}", e);
+                                    false
+                                }
+                            } {}
+                        },
+                        Err(err) => println!("Connection error: {:?}", err)
+                        //println!("DB: {:?}", db);
+                    }
+                });
 
                 evict_pid.map(|evict_pid| {
                     nix::sys::wait::waitpid(evict_pid, None);
@@ -164,6 +226,7 @@ impl VmAppConfig {
 
                 vmm.start_instance().expect("Start");
                 vmm.join();
+                vthread.join().unwrap();
                 std::process::exit(0);
             }
         }

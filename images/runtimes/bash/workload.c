@@ -1,114 +1,84 @@
-#define _GNU_SOURCE
-
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-
-#include <fcntl.h>
-#include <sched.h>
+#include <sys/socket.h>
+#include <linux/vm_sockets.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+/*
 
-#include <sys/io.h>
-#include <sys/ioctl.h>
-#include <sys/mount.h>
-#include <sys/wait.h>
+struct WriteReq {
+	char key[20];
+	int value;
+};
 
-#include <linux/random.h>
+struct ReadReq {
+	char key[20];	
+};
+*/
 
-int main() {
-  // Pretend random number generator has been properly seeded
-  int rand = open("/dev/random", 0);
-  int amount = 10241024;
-  if (ioctl(rand, RNDADDTOENTCNT, &amount) < 0) {
-    perror("ioctl");
-  }
-
-  // Make sure we are allowed to perform `outl`
-  if (iopl(3)) {perror("iopl"); exit(1);}
-
-  // Let VMM know each of the CPUS is ready for a snapshot
-  cpu_set_t *cset = CPU_ALLOC(8); // assumes we'll never have more than 8 CPUs
-  for (int cpu = 1; ; cpu++) {
-    CPU_ZERO(cset);
-    CPU_SET(cpu, cset);
-    if (sched_setaffinity(0, sizeof(cpu_set_t), cset) < 0) {
-      // If we got an error assume it's because the CPU doesn't exist, so we're done
-      break;
-    } else {
-      outl(124, 0x3f0);
-    }
-  }
-
-  // Finally, signal the VMM to start snapshotting from the main CPU
-  CPU_ZERO(cset);
-  CPU_SET(0, cset);
-  sched_setaffinity(0, sizeof(cpu_set_t), cset);
-  outl(124, 0x3f0);
-
-  // Mount the function filesystem
-  mount("/dev/vdb", "/srv", "ext4", 0, "ro");
-
-  // Open ttyS1 for reading requests, and for writing responses
-  FILE* request_fd = fopen("/dev/ttyS1", "r");
-  FILE* response_fd = fopen("/dev/ttyS1", "w");
-  // OK, VMM, we're ready for requests
-  outl(126, 0x3f0);
-
-  // *** MAIN REQUEST LOOP ** //
-
-  for (;;) {
-
-    // Read JSON request line into `request`
-    char *request = NULL;
-    size_t request_len = 0;
-    ssize_t nread = getline(&request, &request_len, request_fd);
-    // `request` now is null terminated and includes the newline character
-
-    // We'll get responses from the child process via a pipe
-    int pipefds[2];
-    pipe(pipefds);
-
-    int pid = fork();
-    if (pid == 1) {
-      // Child process
-      //
-      // Don'e need read-end of pipe
-      close(pipefds[0]);
-      // Don't need parent's stdout
-      close(1);
-      // Use write-end of pipe for child's stdout
-      dup2(pipefds[1], 1);
-      // Run, child!
-      execl("/srv/workload", request, NULL);
-    } else {
-      // Parent process
-      //
-      // We're done with the request in this address space
-      free(request);
-
-      // Don't need write-end of pipe
-      close(pipefds[0]);
-
-      // Read the response as a JSON line from the child's pipe
-      char *response = NULL;
-      size_t response_len = 0;
-      FILE* pipe_out = fdopen(pipefds[1], "r");
-      ssize_t nread = getline(&response, &response_len, pipe_out);
-      uint8_t response_len_byte = (uint8_t) response_len;
-
-      // Write the response prefixed with a length byte
-      fwrite(&response_len_byte, sizeof(uint8_t), 1, response_fd);
-      fflush(response_fd);
-
-      // Done with the pipe
-      close(pipefds[1]);
-      // Done with the response
-      free(response);
-
-      // Wait for the child to exit
-      waitpid(pid, NULL, 0);
-    }
-  }
+int main () {
+	printf("hello pipi");
+	int sock;
+	struct sockaddr_vm sock_addr;
+	int res;
+	char read_req[32];
+	char write_req[32];
+	sock = socket(AF_VSOCK, SOCK_STREAM, 0);
+	if (sock == -1) {
+		printf("cannot create sock :(");
+	} else {
+		printf("created sock :)");
+	}
+	sock_addr.svm_family = AF_VSOCK;
+	sock_addr.svm_reserved1 = 0;
+	sock_addr.svm_port = 52;
+	sock_addr.svm_cid = 2;
+	/*res = bind(sock, (const struct sockaddr *)&sock_addr, sizeof(sock_addr));
+	if (res == -1)
+		printf("cannot bind :(");
+	res = listen(sock, 1);
+	if (res == -1)
+		printf("cannot listen :(");
+	*/
+	res = connect(sock, (const struct sockaddr *)&sock_addr, sizeof(sock_addr));
+	if (res == -1) {
+		printf("cannot connect :(");
+	} else {
+		printf("connected :)");
+	}
+	//struct WriteReq write_req = {"pi", 3};
+	//unsigned char *buffer = (char*)malloc(sizeof(write_req));
+	//memcpy(buffer, (const unsigned char*) &write_req, sizeof(write_req));
+	// 1 : create_dir
+	// 2 : metadata
+	// 3 : read
+	// 4 : write
+	// 5 : copy
+	// 6 : remove_dir
+	// 7 : remove_dir_all
+	// 8 : remove_file
+	// 9 : set_permissions
+	char op[] = "create_dir";
+	char key[] = "pi";
+	char value[] = "3.14";
+	//size_t payload_length = sizeof(op) + sizeof(key) +sizeof(value);
+	char end[] = "\r";
+	//memcpy(write_req, &payload_length, sizeof(payload_length));
+	memcpy(write_req, &op, sizeof(op));
+	memcpy(write_req + sizeof(op), &key, sizeof(key));
+	memcpy(write_req + sizeof(op) + sizeof(key), &value, sizeof(value));
+	memcpy(write_req + sizeof(op) + sizeof(key) + sizeof(value), &end, sizeof(end));
+	write(sock, write_req, sizeof(op) + sizeof(key) + sizeof(value) + sizeof(end));
+	//usleep(1000*1000);
+	char op_read[] = "2";
+	memcpy(read_req, &op_read, sizeof(op_read));
+	memcpy(read_req + sizeof(op_read), &key, sizeof(key));
+	memcpy(read_req + sizeof(op_read) + sizeof(key), &end, sizeof(end));
+	write(sock, read_req, sizeof(op_read) + sizeof(key) + sizeof(end));
+	char buffer[32];
+	bzero(buffer, 32);
+	read(sock, buffer, 32);
+	printf("[C client] read value: %s", buffer);
+	return 0;
 }
-
