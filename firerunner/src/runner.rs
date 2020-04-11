@@ -180,11 +180,18 @@ impl VmAppConfig {
                                     println!("Received MSG!: {:?}", &buffer[0..msg_len]);
                                     let reqs : Vec<&[u8]>= buffer
                                         .split(|x| *x == b'\r')
-                                        //.filter(|y| !y.is_empty())
                                         .collect();
                                     println!("reqs: {:?}", reqs);
-                                    for req in reqs.iter() {
-                                        handle_req(req.clone());
+                                    for rreq in reqs.iter() {
+                                        let req : Vec<&[u8]> = rreq
+                                            .split(|x| *x == 0)
+                                            .filter(|x| !x.is_empty())
+                                            .collect();
+                                        if !req.is_empty() {
+                                            let res = handle_req(req.clone());
+                                            vstream.write(res.unwrap());
+                                            println!("RES from FS: {:?}", res);
+                                        }
                                     }
 /*
                                     let op = str::from_utf8(&req[0]).unwrap().to_owned();
