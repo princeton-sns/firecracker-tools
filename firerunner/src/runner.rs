@@ -185,9 +185,11 @@ impl VmAppConfig {
                                             .collect();
                                         if !req.is_empty() {
                                             let res = handle_req(req.clone()).unwrap();
-                                            let ress = str::from_utf8(&res).unwrap();
-                                            println!("RES from FS: {:?}", ress);
-                                            vstream.write(&res);
+                                            if !res.is_empty() {
+                                                let ress = str::from_utf8(&res).unwrap();
+                                                println!("[Firerunner] RES from FS: {:?}", ress);
+                                                vstream.write(&res);
+                                            }
                                         }
                                     }
 /*

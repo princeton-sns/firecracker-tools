@@ -38,8 +38,11 @@ int main () {
 	 * - create a new directory
 	 * - create a text file
 	 * - read from the text file
+	 * - create a new text file from read result
 	 * - copy to a new file
 	 * - remove the whole directory
+	 * - create a new directory
+	 * - remove the empty directory
 	 *
 	 * */
 	char req0[32];
@@ -67,10 +70,18 @@ int main () {
 	memcpy(req2 + sizeof(op2), &filename, sizeof(filename));
 	memcpy(req2 + sizeof(op2) + sizeof(filename), &end, sizeof(end));
 	write(sock, req2, sizeof(op2) + sizeof(filename) + sizeof(end));
-	char op2_buffer[500];
-	//bzero(op2_buffer, 500);
-	read(sock, op2_buffer, 500);
-	printf("[C client] read value: %s", op2_buffer);
+	char op2_buffer[128];
+	bzero(op2_buffer, 128);
+	ssize_t size = read(sock, op2_buffer, 128);
+	printf("[C client] read value size %ld: %s", size, op2_buffer);
+	
+	char req22[64];
+	char filename22[] = "pidir/todo-test.txt";
+	memcpy(req22, &op1, sizeof(op1));
+	memcpy(req22 + sizeof(op1), &filename22, sizeof(filename22));
+	memcpy(req22 + sizeof(op1) + sizeof(filename22), &op2_buffer, size);
+	memcpy(req22 + sizeof(op1) + sizeof(filename22) + size, &end, sizeof(end));
+	write(sock, req22, sizeof(op1) + sizeof(filename22) + size + sizeof(end));
 
 	char req3[32];
 	char op3[] = "copy";
@@ -82,11 +93,25 @@ int main () {
 	write(sock, req3, sizeof(op3) + sizeof(filename) + sizeof(filename_cp) + sizeof(end));
 
 	char req4[32];
-	char op4[] = "remove_dir_all";
-	memcpy(req4, &op4, sizeof(op4));
-	memcpy(req4 + sizeof(op4), &dir, sizeof(dir));
-	memcpy(req4 + sizeof(op4) + sizeof(dir), &end, sizeof(end));
-	write(sock, req4, sizeof(op4) + sizeof(dir) + sizeof(end));
+	char shindir[] = "shindir";
+	memcpy(req4, &op, sizeof(op));
+	memcpy(req4 + sizeof(op), &shindir, sizeof(shindir));
+	memcpy(req4 + sizeof(op) + sizeof(shindir), &end, sizeof(end));
+	write(sock, req4, sizeof(op) + sizeof(shindir) + sizeof(end));
+
+	char req5[64];
+	char op5[] = "remove_dir_all";
+	memcpy(req5, &op5, sizeof(op5));
+	memcpy(req5 + sizeof(op5), &dir, sizeof(dir));
+	memcpy(req5 + sizeof(op5) + sizeof(dir), &end, sizeof(end));
+	write(sock, req5, sizeof(op5) + sizeof(dir) + sizeof(end));
+
+	char req6[64];
+	char op6[] = "remove_dir";
+	memcpy(req6, &op6, sizeof(op6));
+	memcpy(req6 + sizeof(op6), &shindir, sizeof(shindir));
+	memcpy(req6 + sizeof(op6) + sizeof(shindir), &end, sizeof(end));
+	write(sock, req6, sizeof(op6) + sizeof(shindir) + sizeof(end));
 
 	return 0;
 }
