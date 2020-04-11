@@ -11,7 +11,6 @@ use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 use vmm::vmm_config::vsock::VsockDeviceConfig;
 use std::thread;
 use std::io::{Read, Write};
-use std::collections::HashMap;
 use std::str;
 use std::iter::FromIterator;
 
@@ -167,7 +166,6 @@ impl VmAppConfig {
                     VsockDeviceConfig {id: libc::VMADDR_CID_HOST.to_string(),
                                        guest_cid: self.vsock_cid}).expect("vsock");
 
-               // let mut db = HashMap::new();
                 let vthread = thread::spawn(move || {
                     let vlistener = VsockListener::bind(VMADDR_CID_HOST, 52);
                     let vconnection = vlistener.unwrap().accept();
@@ -177,11 +175,9 @@ impl VmAppConfig {
                             let mut buffer = [0;256];
                             while match vstream.read(&mut buffer) {
                                 Ok(msg_len) => {
-                                    //println!("Received MSG!: {:?}", &buffer[0..msg_len]);
                                     let reqs : Vec<&[u8]>= buffer
                                         .split(|x| *x == b'\r')
                                         .collect();
-                                    //println!("reqs: {:?}", reqs);
                                     for rreq in reqs.iter() {
                                         let req : Vec<&[u8]> = rreq
                                             .split(|x| *x == 0)
@@ -223,7 +219,6 @@ impl VmAppConfig {
                             } {}
                         },
                         Err(err) => println!("Connection error: {:?}", err)
-                        //println!("DB: {:?}", db);
                     }
                 });
 
