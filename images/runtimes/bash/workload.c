@@ -67,14 +67,14 @@ int main () {
 	memcpy(req2 + sizeof(op2), &filename, sizeof(filename));
 	memcpy(req2 + sizeof(op2) + sizeof(filename), &end, sizeof(end));
 	write(sock, req2, sizeof(op2) + sizeof(filename) + sizeof(end));
-	char op2_buffer[128];
-	bzero(op2_buffer, 128);
-	read(sock, op2_buffer, 128);
+	char op2_buffer[500];
+	//bzero(op2_buffer, 500);
+	read(sock, op2_buffer, 500);
 	printf("[C client] read value: %s", op2_buffer);
-/*
+
 	char req3[32];
 	char op3[] = "copy";
-	char filename_cp[] = "todo-copy.txt";
+	char filename_cp[] = "pidir/todo-copy.txt";
 	memcpy(req3, &op3, sizeof(op3));
 	memcpy(req3 + sizeof(op3), &filename, sizeof(filename));
 	memcpy(req3 + sizeof(op3) + sizeof(filename), &filename_cp, sizeof(filename_cp));
@@ -87,6 +87,6 @@ int main () {
 	memcpy(req4 + sizeof(op4), &dir, sizeof(dir));
 	memcpy(req4 + sizeof(op4) + sizeof(dir), &end, sizeof(end));
 	write(sock, req4, sizeof(op4) + sizeof(dir) + sizeof(end));
-*/
+
 	return 0;
 }

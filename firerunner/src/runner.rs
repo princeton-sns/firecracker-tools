@@ -174,23 +174,24 @@ impl VmAppConfig {
                     match vconnection {
                         Ok((mut vstream, vaddr)) => {
                             println!("Successfully connected to {:?}", vaddr);
-                            let mut buffer = [0;100];
+                            let mut buffer = [0;256];
                             while match vstream.read(&mut buffer) {
                                 Ok(msg_len) => {
-                                    println!("Received MSG!: {:?}", &buffer[0..msg_len]);
+                                    //println!("Received MSG!: {:?}", &buffer[0..msg_len]);
                                     let reqs : Vec<&[u8]>= buffer
                                         .split(|x| *x == b'\r')
                                         .collect();
-                                    println!("reqs: {:?}", reqs);
+                                    //println!("reqs: {:?}", reqs);
                                     for rreq in reqs.iter() {
                                         let req : Vec<&[u8]> = rreq
                                             .split(|x| *x == 0)
                                             .filter(|x| !x.is_empty())
                                             .collect();
                                         if !req.is_empty() {
-                                            let res = handle_req(req.clone());
-                                            vstream.write(res.unwrap());
-                                            println!("RES from FS: {:?}", res);
+                                            let res = handle_req(req.clone()).unwrap();
+                                            let ress = str::from_utf8(&res).unwrap();
+                                            println!("RES from FS: {:?}", ress);
+                                            vstream.write(&res);
                                         }
                                     }
 /*
@@ -212,7 +213,7 @@ impl VmAppConfig {
                                             }
                                         }
                                     }*/
-                                    buffer = [0;100];
+                                    buffer = [0;256];
                                     true
                                 },
                                 Err(e) => {
