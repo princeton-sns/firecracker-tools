@@ -9,14 +9,11 @@ use vmm::vmm_config::drive::BlockDeviceConfig;
 use vmm::vmm_config::machine_config::VmConfig;
 use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
 use vmm::vmm_config::vsock::VsockDeviceConfig;
-use std::thread;
-use std::io::{Read, Write};
-use std::str;
-use std::iter::FromIterator;
+use std::{io::{Read, Write}, str, thread};
 
-use crate::vsock::*;
 use crate::vmm_wrapper::VmmWrapper;
 use super::pipe_pair::PipePair;
+use crate::vsock::*;
 use crate::fs::*;
 
 #[derive(Debug)]
@@ -167,60 +164,47 @@ impl VmAppConfig {
                                        guest_cid: self.vsock_cid}).expect("vsock");
 
                 let vthread = thread::spawn(move || {
-                    let vlistener = VsockListener::bind(VMADDR_CID_HOST, 52);
-                    let vconnection = vlistener.unwrap().accept();
+                    let mut vlistener = VsockListener::bind(VMADDR_CID_HOST, 52).unwrap();
+                    let vconnection = vlistener.accept();
+                    let mut vcloser = vlistener.closer();
                     match vconnection {
                         Ok((mut vstream, vaddr)) => {
                             println!("Successfully connected to {:?}", vaddr);
                             let mut buffer = [0;256];
                             while match vstream.read(&mut buffer) {
                                 Ok(msg_len) => {
-                                    let reqs : Vec<&[u8]>= buffer
-                                        .split(|x| *x == b'\r')
-                                        .collect();
-                                    for rreq in reqs.iter() {
-                                        let req : Vec<&[u8]> = rreq
-                                            .split(|x| *x == 0)
-                                            .filter(|x| !x.is_empty())
+                                    if msg_len != 0 {
+                                        let reqs : Vec<&[u8]>= buffer
+                                            .split(|x| *x == b'\r')
                                             .collect();
-                                        if !req.is_empty() {
-                                            let res = handle_req(req.clone()).unwrap();
-                                            if !res.is_empty() {
-                                                let ress = str::from_utf8(&res).unwrap();
-                                                println!("[Firerunner] RES from FS: {:?}", ress);
-                                                vstream.write(&res);
+                                        for rreq in reqs.iter() {
+                                            let req : Vec<&[u8]> = rreq
+                                                .split(|x| *x == 0)
+                                                .filter(|x| !x.is_empty())
+                                                .collect();
+                                            if !req.is_empty() {
+                                                let res =
+                                                    handle_req(req.clone()).unwrap();
+                                                if !res.is_empty() {
+                                                    let ress =
+                                                        str::from_utf8(&res).unwrap();
+                                                    vstream.write(&res);
+                                                }
                                             }
                                         }
-                                    }
-/*
-                                    let op = str::from_utf8(&req[0]).unwrap().to_owned();
-                                    if op.trim() == "1" {
-                                        let key = str::from_utf8(&req[1]).unwrap().to_owned();
-                                        let value = str::from_utf8(&req[2]).unwrap().to_owned();
-                                        println!("WRITE REQ k={:?},v={:?}", key, value);
-                                        db.insert(key, value);
-                                    } else if op.trim() == "2" {
-                                        let key = str::from_utf8(&req[1]).unwrap().to_owned();
-                                        println!("READ REQ k={:?}", key);
-                                        match db.get(&key) {
-                                            Some(value) => {
-                                                vstream.write(value.as_bytes());
-                                            },
-                                            None => {
-                                                vstream.write(b"None! :(");
-                                            }
-                                        }
-                                    }*/
-                                    buffer = [0;256];
-                                    true
+                                        buffer = [0;256];
+                                        true
+                                    } else { false }
                                 },
                                 Err(e) => {
-                                    //println!("Error occurred :( {:?}", e);
+                                    println!("Error reading from vstream :( {:?}", e);
                                     false
                                 }
                             } {}
+                            println!("closing vsock");
+                            vcloser.close();
                         },
-                        Err(err) => println!("Connection error: {:?}", err)
+                        Err(err) => println!("Vsock connection error: {:?}", err)
                     }
                 });
 
@@ -231,7 +215,7 @@ impl VmAppConfig {
 
                 vmm.start_instance().expect("Start");
                 vmm.join();
-                vthread.join().unwrap();
+                vthread.join();
                 std::process::exit(0);
             }
         }

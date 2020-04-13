@@ -45,7 +45,7 @@ pub fn handle_req(req: Vec<&[u8]>) -> std::io::Result<Vec<u8>> {
             Ok(vec![])
         },
         _ => {
-            Ok(vec![])
+            Ok(b"Op not supported".to_vec())
         }
     }
 
