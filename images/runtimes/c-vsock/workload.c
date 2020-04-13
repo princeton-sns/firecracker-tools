@@ -91,11 +91,11 @@ int main () {
 	write(sock, req3, sizeof(op3) + sizeof(filename) + sizeof(filename_cp) + sizeof(end));
 
 	char req4[32];
-	char shindir[] = "shindir";
+	char pidir1[] = "pidir1";
 	memcpy(req4, &op, sizeof(op));
-	memcpy(req4 + sizeof(op), &shindir, sizeof(shindir));
-	memcpy(req4 + sizeof(op) + sizeof(shindir), &end, sizeof(end));
-	write(sock, req4, sizeof(op) + sizeof(shindir) + sizeof(end));
+	memcpy(req4 + sizeof(op), &pidir1, sizeof(pidir1));
+	memcpy(req4 + sizeof(op) + sizeof(pidir1), &end, sizeof(end));
+	write(sock, req4, sizeof(op) + sizeof(pidir1) + sizeof(end));
 
 	char req5[64];
 	char op5[] = "remove_dir_all";
@@ -107,9 +107,9 @@ int main () {
 	char req6[64];
 	char op6[] = "remove_dir";
 	memcpy(req6, &op6, sizeof(op6));
-	memcpy(req6 + sizeof(op6), &shindir, sizeof(shindir));
-	memcpy(req6 + sizeof(op6) + sizeof(shindir), &end, sizeof(end));
-	write(sock, req6, sizeof(op6) + sizeof(shindir) + sizeof(end));
+	memcpy(req6 + sizeof(op6), &pidir1, sizeof(pidir1));
+	memcpy(req6 + sizeof(op6) + sizeof(pidir1), &end, sizeof(end));
+	write(sock, req6, sizeof(op6) + sizeof(pidir1) + sizeof(end));
 	
 	close(sock);
 
