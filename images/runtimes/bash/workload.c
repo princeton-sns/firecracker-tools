@@ -1,117 +1,114 @@
+#define _GNU_SOURCE
+
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <sys/socket.h>
-#include <linux/vm_sockets.h>
-#include <string.h>
+#include <stdlib.h>
+
+#include <fcntl.h>
+#include <sched.h>
 #include <unistd.h>
 
-int main () {
-	printf("hello pipi");
-	/*
-	 * Connect to VMM over vsock
-	 *
-	 * */
-	int sock;
-	struct sockaddr_vm sock_addr;
-	int res;
-	sock = socket(AF_VSOCK, SOCK_STREAM, 0);
-	if (sock == -1) {
-		printf("cannot create sock :(");
-	} else {
-		printf("created sock :)");
-	}
-	sock_addr.svm_family = AF_VSOCK;
-	sock_addr.svm_reserved1 = 0;
-	sock_addr.svm_port = 52;
-	sock_addr.svm_cid = 2;
-	res = connect(sock, (const struct sockaddr *)&sock_addr, sizeof(sock_addr));
-	if (res == -1) {
-		printf("cannot connect :(");
-	} else {
-		printf("connected :)");
-	}
+#include <sys/io.h>
+#include <sys/ioctl.h>
+#include <sys/mount.h>
+#include <sys/wait.h>
 
-	/*
-	 * Send requests to VMM to manage VMM's local FS
-	 * 
-	 * - create a new directory
-	 * - create a text file
-	 * - read from the text file
-	 * - create a new text file from read result
-	 * - copy to a new file
-	 * - remove the whole directory
-	 * - create a new directory
-	 * - remove the empty directory
-	 *
-	 * */
-	char req0[32];
-	char op[] = "create_dir";
-	char dir[] = "pidir";
-	char end[] = "\r";
-	memcpy(req0, &op, sizeof(op));
-	memcpy(req0 + sizeof(op), &dir, sizeof(dir));
-	memcpy(req0 + sizeof(op) + sizeof(dir), &end, sizeof(end));
-	write(sock, req0, sizeof(op) + sizeof(dir) + sizeof(end));
-	
-	char req1[64];
-	char op1[] = "write";
-	char filename[] = "pidir/todo.txt";
-	char body[] = "1. take out trash\n2. laundry\n3. call grandma\n";
-	memcpy(req1, &op1, sizeof(op1));
-	memcpy(req1 + sizeof(op1), &filename, sizeof(filename));
-	memcpy(req1 + sizeof(op1) + sizeof(filename), &body, sizeof(body));
-	memcpy(req1 + sizeof(op1) + sizeof(filename) + sizeof(body), &end, sizeof(end));
-	write(sock, req1, sizeof(op1) + sizeof(filename) + sizeof(body) + sizeof(end));
+#include <linux/random.h>
 
-	char req2[32];
-	char op2[] = "read";
-	memcpy(req2, &op2, sizeof(op2));
-	memcpy(req2 + sizeof(op2), &filename, sizeof(filename));
-	memcpy(req2 + sizeof(op2) + sizeof(filename), &end, sizeof(end));
-	write(sock, req2, sizeof(op2) + sizeof(filename) + sizeof(end));
-	char op2_buffer[128];
-	bzero(op2_buffer, 128);
-	ssize_t size = read(sock, op2_buffer, 128);
-	printf("[C client] read value size %ld: %s", size, op2_buffer);
-	
-	char req22[64];
-	char filename22[] = "pidir/todo-test.txt";
-	memcpy(req22, &op1, sizeof(op1));
-	memcpy(req22 + sizeof(op1), &filename22, sizeof(filename22));
-	memcpy(req22 + sizeof(op1) + sizeof(filename22), &op2_buffer, size);
-	memcpy(req22 + sizeof(op1) + sizeof(filename22) + size, &end, sizeof(end));
-	write(sock, req22, sizeof(op1) + sizeof(filename22) + size + sizeof(end));
+int main() {
+  // Pretend random number generator has been properly seeded
+  int rand = open("/dev/random", 0);
+  int amount = 10241024;
+  if (ioctl(rand, RNDADDTOENTCNT, &amount) < 0) {
+    perror("ioctl");
+  }
 
-	char req3[32];
-	char op3[] = "copy";
-	char filename_cp[] = "pidir/todo-copy.txt";
-	memcpy(req3, &op3, sizeof(op3));
-	memcpy(req3 + sizeof(op3), &filename, sizeof(filename));
-	memcpy(req3 + sizeof(op3) + sizeof(filename), &filename_cp, sizeof(filename_cp));
-	memcpy(req3 + sizeof(op3) + sizeof(filename) + sizeof(filename_cp), &end, sizeof(end));
-	write(sock, req3, sizeof(op3) + sizeof(filename) + sizeof(filename_cp) + sizeof(end));
+  // Make sure we are allowed to perform `outl`
+  if (iopl(3)) {perror("iopl"); exit(1);}
 
-	char req4[32];
-	char shindir[] = "shindir";
-	memcpy(req4, &op, sizeof(op));
-	memcpy(req4 + sizeof(op), &shindir, sizeof(shindir));
-	memcpy(req4 + sizeof(op) + sizeof(shindir), &end, sizeof(end));
-	write(sock, req4, sizeof(op) + sizeof(shindir) + sizeof(end));
+  // Let VMM know each of the CPUS is ready for a snapshot
+  cpu_set_t *cset = CPU_ALLOC(8); // assumes we'll never have more than 8 CPUs
+  for (int cpu = 1; ; cpu++) {
+    CPU_ZERO(cset);
+    CPU_SET(cpu, cset);
+    if (sched_setaffinity(0, sizeof(cpu_set_t), cset) < 0) {
+      // If we got an error assume it's because the CPU doesn't exist, so we're done
+      break;
+    } else {
+      outl(124, 0x3f0);
+    }
+  }
 
-	char req5[64];
-	char op5[] = "remove_dir_all";
-	memcpy(req5, &op5, sizeof(op5));
-	memcpy(req5 + sizeof(op5), &dir, sizeof(dir));
-	memcpy(req5 + sizeof(op5) + sizeof(dir), &end, sizeof(end));
-	write(sock, req5, sizeof(op5) + sizeof(dir) + sizeof(end));
+  // Finally, signal the VMM to start snapshotting from the main CPU
+  CPU_ZERO(cset);
+  CPU_SET(0, cset);
+  sched_setaffinity(0, sizeof(cpu_set_t), cset);
+  outl(124, 0x3f0);
 
-	char req6[64];
-	char op6[] = "remove_dir";
-	memcpy(req6, &op6, sizeof(op6));
-	memcpy(req6 + sizeof(op6), &shindir, sizeof(shindir));
-	memcpy(req6 + sizeof(op6) + sizeof(shindir), &end, sizeof(end));
-	write(sock, req6, sizeof(op6) + sizeof(shindir) + sizeof(end));
-	
-	close(sock);
+  // Mount the function filesystem
+  mount("/dev/vdb", "/srv", "ext4", 0, "ro");
 
-	return 0;
+  // Open ttyS1 for reading requests, and for writing responses
+  FILE* request_fd = fopen("/dev/ttyS1", "r");
+  FILE* response_fd = fopen("/dev/ttyS1", "w");
+  // OK, VMM, we're ready for requests
+  outl(126, 0x3f0);
+
+  // *** MAIN REQUEST LOOP ** //
+
+  for (;;) {
+
+    // Read JSON request line into `request`
+    char *request = NULL;
+    size_t request_len = 0;
+    ssize_t nread = getline(&request, &request_len, request_fd);
+    // `request` now is null terminated and includes the newline character
+
+    // We'll get responses from the child process via a pipe
+    int pipefds[2];
+    pipe(pipefds);
+
+    int pid = fork();
+    if (pid == 1) {
+      // Child process
+      //
+      // Don'e need read-end of pipe
+      close(pipefds[0]);
+      // Don't need parent's stdout
+      close(1);
+      // Use write-end of pipe for child's stdout
+      dup2(pipefds[1], 1);
+      // Run, child!
+      execl("/srv/workload", request, NULL);
+    } else {
+      // Parent process
+      //
+      // We're done with the request in this address space
+      free(request);
+
+      // Don't need write-end of pipe
+      close(pipefds[0]);
+
+      // Read the response as a JSON line from the child's pipe
+      char *response = NULL;
+      size_t response_len = 0;
+      FILE* pipe_out = fdopen(pipefds[1], "r");
+      ssize_t nread = getline(&response, &response_len, pipe_out);
+      uint8_t response_len_byte = (uint8_t) response_len;
+
+      // Write the response prefixed with a length byte
+      fwrite(&response_len_byte, sizeof(uint8_t), 1, response_fd);
+      fflush(response_fd);
+
+      // Done with the pipe
+      close(pipefds[1]);
+      // Done with the response
+      free(response);
+
+      // Wait for the child to exit
+      waitpid(pid, NULL, 0);
+    }
+  }
 }
+
