@@ -8,9 +8,13 @@ use vmm::vmm_config::boot_source::BootSourceConfig;
 use vmm::vmm_config::drive::BlockDeviceConfig;
 use vmm::vmm_config::machine_config::VmConfig;
 use vmm::vmm_config::instance_info::{InstanceInfo, InstanceState};
+use vmm::vmm_config::vsock::VsockDeviceConfig;
+use std::{io::{Read, Write}, str, thread};
 
 use crate::vmm_wrapper::VmmWrapper;
 use super::pipe_pair::PipePair;
+use crate::vsock::*;
+use crate::fs::*;
 
 #[derive(Debug)]
 pub struct VmAppConfig {
@@ -155,7 +159,54 @@ impl VmAppConfig {
                     };
                     vmm.insert_block_device(block_config).expect("AppBlk");
                 }
+                vmm.add_vsock(
+                    VsockDeviceConfig {id: libc::VMADDR_CID_HOST.to_string(),
+                                       guest_cid: self.vsock_cid}).expect("vsock");
 
+                let vthread = thread::spawn(move || {
+                    let mut vlistener = VsockListener::bind(VMADDR_CID_HOST, 52).unwrap();
+                    let vconnection = vlistener.accept();
+                    let mut vcloser = vlistener.closer();
+                    match vconnection {
+                        Ok((mut vstream, vaddr)) => {
+                            println!("Successfully connected to {:?}", vaddr);
+                            let mut buffer = [0;256];
+                            while match vstream.read(&mut buffer) {
+                                Ok(msg_len) => {
+                                    if msg_len != 0 {
+                                        let reqs : Vec<&[u8]>= buffer
+                                            .split(|x| *x == b'\r')
+                                            .collect();
+                                        for rreq in reqs.iter() {
+                                            let req : Vec<&[u8]> = rreq
+                                                .split(|x| *x == 0)
+                                                .filter(|x| !x.is_empty())
+                                                .collect();
+                                            if !req.is_empty() {
+                                                let res =
+                                                    handle_req(req.clone()).unwrap();
+                                                if !res.is_empty() {
+                                                    let ress =
+                                                        str::from_utf8(&res).unwrap();
+                                                    vstream.write(&res);
+                                                }
+                                            }
+                                        }
+                                        buffer = [0;256];
+                                        true
+                                    } else { false }
+                                },
+                                Err(e) => {
+                                    println!("Error reading from vstream :( {:?}", e);
+                                    false
+                                }
+                            } {}
+                            println!("closing vsock");
+                            vcloser.close();
+                        },
+                        Err(err) => println!("Vsock connection error: {:?}", err)
+                    }
+                });
 
                 evict_pid.map(|evict_pid| {
                     nix::sys::wait::waitpid(evict_pid, None);
@@ -164,6 +215,7 @@ impl VmAppConfig {
 
                 vmm.start_instance().expect("Start");
                 vmm.join();
+                vthread.join();
                 std::process::exit(0);
             }
         }
