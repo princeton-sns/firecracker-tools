@@ -20,6 +20,9 @@ cgroups = "*"
 futures = "=0.1.18"
 vmm = { path = "../firecracker/vmm", features = ["vsock"] }
 sys_util = { path = "../firecracker/sys_util" }
+net_util = { path = "../firecracker/net_util" }
+fc_util = { path = "../firecracker/fc_util" }
+memory_model = { path = "../firecracker/memory_model" }
 nix = "0.14.*"
 libc = "*"
 serde = { version = "*", features = ["derive"] }
